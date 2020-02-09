@@ -125,7 +125,6 @@ void IRVisitor::visit(Variable *variable) {
 void IRVisitor::visit(Func *func) {
     // Create a new module
     std::unique_ptr<llvm::Module> module(new llvm::Module("originalModule", TheContext));
-    
     // function
     std::vector<std::string> argNames{"a", "b"};
     auto functionName = "originalFunction";
@@ -179,6 +178,8 @@ void IRVisitor::visit(Func *func) {
         return;
     }
 
+    module->print(llvm::outs(), nullptr);
+
     func->realize(std::move(module), function->getName());
 }
 
@@ -194,7 +195,7 @@ int main() {
     visitor.visit(&my_func2);
 
     std::cout << my_func(1, 2) << std::endl;
-    std::cout << my_func2(10, 2) << std::endl;
+    std::cout << my_func2(20    , 2) << std::endl;
     
     return 0;
 }
