@@ -248,12 +248,39 @@ uint64_t Execution::getFunctionAddress() {
     return engineBuilder->getFunctionAddress(functionName);
 }
 
+double hoge(double a, double b) {
+    return a * b;
+}
+
 void IRVisitor::realise(Expr expr) {
     Value *RetVal = visit(expr);
 
     std::cout << RetVal << std::endl;
+
+
+    // Make the function type:  double(double,double) etc.
+    std::vector<Type *> Doubles(1, Type::getDoubleTy(TheContext));
+    FunctionType *FT =
+        FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    Function *F =
+        Function::Create(FT, Function::ExternalLinkage, "cos", module.get());
+
+    // Set names for all arguments.
+    unsigned Idx = 0;
+    for (auto &Arg : F->args())
+        Arg.setName("x");
+
+    auto arg1 = ConstantFP::get(TheContext, APFloat(3.14/3.0));
+
+    std::vector<Value *> ArgsV;
+
+    ArgsV.push_back(arg1);
+
+    Function *TheFunction = module->getFunction("cos");
     
-    builder->CreateRet(RetVal);
+    auto hoge = builder->CreateCall(TheFunction, ArgsV, "tmphoge");
+    
+    builder->CreateRet(hoge);
 
     if (verifyFunction(*function)) {
         std::cout << ": Error constructing function!\n" << std::endl;
@@ -267,18 +294,32 @@ void IRVisitor::realise(Expr expr) {
 
     module->print(llvm::outs(), nullptr);
 
-    execution = new Execution(std::move(module), "hoge");
 
-    std::vector<GenericValue> Args(2);
-    Args[0].DoubleVal = 10;
-    Args[1].DoubleVal = 20;
-    GenericValue GV = execution->engineBuilder->runFunction(function, Args);
+    // GenericValue GV = execution->engineBuilder->runFunction(function, Args);
+
+    // std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
+    // FunctionType *funcType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+
+    // llvm::FunctionCallee c = module->getOrInsertFunction("hoge", funcType);
+
+    // regist cos
+
+
+    execution = new Execution(std::move(module), "hoge");
+    // c.getCallee()
+    // module->getOrInsertFunction("atan2", Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext));
+
+    // Type::getDoubleTy
+
+    // auto f = getfun
+
+    // builder->CreateCall(c, Args, "tmphoge");
+
 
     // using Func =  int(Ts...);
-    // auto p = ->getFunctionAddress();
-    // auto functionPointer = reinterpret_cast<double(*)(double,...)>(p);
-    // std::cout << (*functionPointer)(std::forward<Ts>(args)...) << std::endl;
-    // return 0;
+    auto p = execution->getFunctionAddress();
+    auto functionPointer = reinterpret_cast<double(*)(double, double)>(p);
+    std::cout << (*functionPointer)(10, 10) << std::endl;
 }
 
 // int hoge() {
