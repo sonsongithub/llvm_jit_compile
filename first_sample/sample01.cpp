@@ -30,7 +30,6 @@ using namespace std;
 static LLVMContext TheContext;
 
 int main() {
-
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
@@ -45,9 +44,11 @@ int main() {
     auto functionName = "originalFunction";
 
     std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
-    Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
-    
+    FunctionType *functionType
+        = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    Function *function
+        = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
+
     // Set names for all arguments.
     // I'd like to use "zip" function, here.....
     unsigned idx = 0;
@@ -70,7 +71,7 @@ int main() {
 
     builder.CreateRet(body);
 
-    if (verifyFunction(*function)) { 
+    if (verifyFunction(*function)) {
         cout << ": Error constructing function!\n" << endl;
         return 1;
     }
@@ -94,7 +95,8 @@ int main() {
     }
 
     // Get pointer to a function which is built by EngineBuilder.
-    auto f = reinterpret_cast<double(*)(double, double)>(engineBuilder->getFunctionAddress(function->getName().str()));
+    auto f = reinterpret_cast<double(*)(double, double)>(
+            engineBuilder->getFunctionAddress(function->getName().str()));
     if (f == NULL) {
         cout << "error" << endl;
         return 1;
@@ -104,4 +106,4 @@ int main() {
     cout << f(1.0, 2.0) << endl;
 
     return 0;
-};
+}

@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2020 sonson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT W  ARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include <memory>
 #include <map>
 #include <string>
@@ -21,9 +43,11 @@
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ADT/APFloat.h"
 
+using namespace llvm;
+
 // Context for LLVM
 
-static llvm::LLVMContext TheContext;
+static LLVMContext TheContext;
 
 class Func;
 class Variable;
@@ -32,7 +56,7 @@ class Execution;
 class IRVisitor {
     llvm::IRBuilder<> *builder;
     std::vector<Variable*> arguments;
-public:
+ public:
     IRVisitor();
     ~IRVisitor();
     void visit(Variable *variable);
@@ -52,7 +76,7 @@ IRVisitor::~IRVisitor() {
 class Execution {
     llvm::ExecutionEngine *engineBuilder;
     std::string functionName;
-public:
+ public:
     Execution(std::unique_ptr<llvm::Module>, std::string);
     uint64_t getFunctionAddress();
 };
@@ -76,7 +100,7 @@ uint64_t Execution::getFunctionAddress() {
 
 
 class Variable {
-public:
+ public:
     Func operator + (Variable obj);
     Func operator - (Variable obj);
 };
@@ -85,7 +109,7 @@ class Func {
     Variable lhs;
     Variable rhs;
     Execution *execution;
-public:
+ public:
     char op;
     Func(char Op, Variable lhs, Variable rhs)
             : op(Op), lhs(lhs), rhs(rhs) {}
@@ -124,29 +148,29 @@ void IRVisitor::visit(Variable *variable) {
 
 void IRVisitor::visit(Func *func) {
     // Create a new module
-    std::unique_ptr<llvm::Module> module(new llvm::Module("originalModule", TheContext));
+    std::unique_ptr<Module> module(new Module("originalModule", TheContext));
     // function
     std::vector<std::string> argNames{"a", "b"};
     auto functionName = "originalFunction";
-    
-    std::vector<llvm::Type *> Doubles(2, llvm::Type::getDoubleTy(TheContext));
-    llvm::FunctionType *functionType =
-        llvm::FunctionType::get(llvm::Type::getDoubleTy(TheContext), Doubles, false);
-    llvm::Function *function =
-        llvm::Function::Create(functionType, llvm::Function::ExternalLinkage, functionName, module.get());
+
+    std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
+    FunctionType *functionType =
+        FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    Function *function =
+        Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
     // Set names for all arguments.
     // I'd like to use "zip" function, here.....
     unsigned idx = 0;
     for (auto &arg : function->args()) {
         arg.setName(argNames[idx++]);
     }
-    
+
     // Create a new basic block to start insertion into.
-    llvm::BasicBlock *basicBlock = llvm::BasicBlock::Create(TheContext, "entry", function);
+    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
     builder->SetInsertPoint(basicBlock);
 
     // Create table
-    static std::map<std::string, llvm::Value*> name2VariableMap;
+    static std::map<std::string, Value*> name2VariableMap;
     for (auto &arg : function->args()) {
         name2VariableMap[arg.getName()] = &arg;
     }
@@ -154,13 +178,19 @@ void IRVisitor::visit(Func *func) {
     switch (func->op) {
     case '+':
         {
-            auto body = builder->CreateFAdd(name2VariableMap["a"], name2VariableMap["b"], "addtmp");
+            auto body = builder->CreateFAdd(
+                name2VariableMap["a"],
+                name2VariableMap["b"],
+                "addtmp");
             builder->CreateRet(body);
         }
         break;
     case '-':
         {
-            auto body = builder->CreateFSub(name2VariableMap["a"], name2VariableMap["b"], "subtmp");
+            auto body = builder->CreateFSub(
+                name2VariableMap["a"],
+                name2VariableMap["b"],
+                "subtmp");
             builder->CreateRet(body);
         }
         break;
@@ -183,8 +213,8 @@ void IRVisitor::visit(Func *func) {
     func->realize(std::move(module), function->getName());
 }
 
-int main() {
 
+int main() {
     auto visitor = IRVisitor();
 
     Variable x, y;
@@ -196,6 +226,6 @@ int main() {
 
     std::cout << my_func(1, 2) << std::endl;
     std::cout << my_func2(20    , 2) << std::endl;
-    
+
     return 0;
 }
