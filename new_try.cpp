@@ -43,9 +43,7 @@
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ADT/APFloat.h"
 
-using namespace llvm;
-
-static LLVMContext TheContext;
+static llvm::LLVMContext TheContext;
 
 class ExprAST;
 class IRVisitor;
@@ -57,18 +55,18 @@ class ExprAST {
     ExprAST() = default;
     virtual ~ExprAST() = default;
     virtual void dump(int level = 0) = 0;
-    virtual Value* accept(IRVisitor* builder) = 0;
+    virtual llvm::Value* accept(IRVisitor* builder) = 0;
 };
 
 /// VarExprAST - Expression class for referencing a Var, like "a".
 class VarExprAST : public ExprAST {
-    std::string Name;
+    std::string name;
 
  public:
-    VarExprAST(std::string Name) : Name(Name) {}
+    explicit VarExprAST(std::string name) : name(name) {}
     // ~VarExprAST() { std::cout << "VarExprAST is deleted." << std::endl; }
     void dump(int level = 0) override;
-    Value* accept(IRVisitor* visitor) override;
+    llvm::Value* accept(IRVisitor* visitor) override;
 };
 
 void VarExprAST::dump(int level) {
@@ -80,11 +78,11 @@ struct Expr {
     std::shared_ptr<ExprAST> value;
  public:
     Expr() = default;
-    Expr(std::shared_ptr<ExprAST> ast) : value(ast) {}
-    Value* accept(IRVisitor* builder);
+    explicit Expr(std::shared_ptr<ExprAST> ast) : value(ast) {}
+    llvm::Value* accept(IRVisitor* builder);
 };
 
-Value* Expr::accept(IRVisitor* builder) {
+llvm::Value* Expr::accept(IRVisitor* builder) {
     return value->accept(builder);
 }
 
@@ -94,20 +92,20 @@ class IRVisitor {
  public:
     Execution *execution;
     llvm::IRBuilder<> *builder;
-    std::map<std::string, Value *> name2Value;
+    std::map<std::string, llvm::Value *> name2Value;
  private:
     std::unique_ptr<llvm::Module> module;
-    Function *function;
+    llvm::Function *function;
  public:
     IRVisitor();
     ~IRVisitor();
-    Value* visit(Expr expr);
+    llvm::Value* visit(Expr expr);
     template <typename... Args> void set_arguments(Args&&... args);
     void realise(Expr expr);
 };
 
-Value* VarExprAST::accept(IRVisitor* visitor) {
-    auto p = visitor->name2Value[Name];
+llvm::Value* VarExprAST::accept(IRVisitor* visitor) {
+    auto p = visitor->name2Value[name];
     return p;
 }
 
@@ -115,10 +113,10 @@ IRVisitor::IRVisitor() {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     builder = new llvm::IRBuilder<>(TheContext);
-    module = make_unique<Module>("abc", TheContext);
+    module = std::make_unique<llvm::Module>("abc", TheContext);
 }
 
-Value* IRVisitor::visit(Expr exp) {
+llvm::Value* IRVisitor::visit(Expr exp) {
     std::cout << "Visit" << std::endl;
     return exp.accept(this);
 }
@@ -137,7 +135,7 @@ class BinaryExprAST : public ExprAST {
     BinaryExprAST(char operation, Expr a, Expr b);
     // ~BinaryExprAST() { std::cout << "BinaryExprAST is deleted." << std::endl; }
     void dump(int level = 0) override;
-    Value* accept(IRVisitor* builder) override;
+    llvm::Value* accept(IRVisitor* builder) override;
 };
 
 BinaryExprAST::BinaryExprAST(char operation, Expr a, Expr b) {
@@ -146,10 +144,10 @@ BinaryExprAST::BinaryExprAST(char operation, Expr a, Expr b) {
     op = operation;
 }
 
-Value* BinaryExprAST::accept(IRVisitor* visiter) {
+llvm::Value* BinaryExprAST::accept(IRVisitor* visiter) {
     std::cout << "accept - BinaryExprAST" << std::endl;
-    Value* left = visiter->visit(lhs);
-    Value* right = visiter->visit(rhs);
+    llvm::Value* left = visiter->visit(lhs);
+    llvm::Value* right = visiter->visit(rhs);
     switch (op) {
     case '+':
         return visiter->builder->CreateFAdd(left, right, "addtmp");
@@ -196,6 +194,12 @@ int Var::name_count = 0;
 
 template <typename... Args>
 void IRVisitor::set_arguments(Args&&... args) {
+
+    using llvm::Function;
+    using llvm::FunctionType;
+    using llvm::BasicBlock;
+    using llvm::Type;
+
     std::vector<Var> collected_args{std::forward<Args>(args)...};
 
     std::vector<Type *> Doubles(collected_args.size(), Type::getDoubleTy(TheContext));
@@ -253,13 +257,17 @@ double hoge(double a, double b) {
 }
 
 void IRVisitor::realise(Expr expr) {
-    Value *RetVal = visit(expr);
+    using llvm::Function;
+    using llvm::FunctionType;
+    using llvm::Type;
+
+    llvm::Value *RetVal = visit(expr);
 
     std::cout << RetVal << std::endl;
 
 
     // Make the function type:  double(double,double) etc.
-    std::vector<Type *> Doubles(1, Type::getDoubleTy(TheContext));
+    std::vector<llvm::Type *> Doubles(1, Type::getDoubleTy(TheContext));
     FunctionType *FT =
         FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
     Function *F =
@@ -270,16 +278,16 @@ void IRVisitor::realise(Expr expr) {
     for (auto &Arg : F->args())
         Arg.setName("x");
 
-    auto arg1 = ConstantFP::get(TheContext, APFloat(3.14/3.0));
+    auto arg1 = llvm::ConstantFP::get(TheContext, llvm::APFloat(3.14/3.0));
 
-    std::vector<Value *> ArgsV;
+    std::vector<llvm::Value *> ArgsV;
 
     ArgsV.push_back(arg1);
 
     Function *TheFunction = module->getFunction("cos");
-    
+
     auto hoge = builder->CreateCall(TheFunction, ArgsV, "tmphoge");
-    
+
     builder->CreateRet(hoge);
 
     if (verifyFunction(*function)) {
@@ -315,32 +323,14 @@ void IRVisitor::realise(Expr expr) {
 
     // builder->CreateCall(c, Args, "tmphoge");
 
-
     // using Func =  int(Ts...);
     auto p = execution->getFunctionAddress();
     auto functionPointer = reinterpret_cast<double(*)(double, double)>(p);
     std::cout << (*functionPointer)(10, 10) << std::endl;
 }
 
-// int hoge() {
-//     Var a, b, c;
-//     Expr d = a + (b + c) + a;
-//     d.value->dump();
-//     return 0;
-// }
-
-
-    // template <typename... Args>
-    // HALIDE_NO_USER_CODE_INLINE typename std::enable_if<Internal::all_are_convertible<Var, Args...>::value, FuncRef>::type
-    // operator()(Args&&... args) const {
-    //     std::vector<Var> collected_args{std::forward<Args>(args)...};
-    //     return this->operator()(collected_args);
-    // }
-
 int main() {
     Var a, b;
-
-    // hoge();
 
     IRVisitor* visitor = new IRVisitor();
 
@@ -350,11 +340,6 @@ int main() {
 
     d.value->dump();
     visitor->realise(d);
-
-    // ExprAST* d = a;
-
-    // c->dump();
-    // d->dump();
 
     delete visitor;
 
