@@ -24,7 +24,7 @@
 
 #include <utility>
 
-Execution::Execution(std::unique_ptr<llvm::Module> module, std::string name) {
+Execution::Execution(std::unique_ptr<llvm::Module> module, const std::string name) {
     // Builder JIT
     functionName = name;
     std::string errStr;

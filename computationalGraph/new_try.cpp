@@ -31,9 +31,14 @@
 #include "ExprAST.hpp"
 #include "IRVisitor.hpp"
 #include "Execution.hpp"
+#include "Func.hpp"
 
 int main() {
     Var a, b;
+
+    Func f;
+
+    std::cout << "hoge" << std::endl;
 
     IRVisitor* visitor = new IRVisitor();
 
@@ -48,4 +53,3 @@ int main() {
 
     return 0;
 }
-

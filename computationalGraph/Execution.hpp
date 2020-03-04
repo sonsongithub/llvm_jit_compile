@@ -41,7 +41,7 @@ class Execution {
     llvm::ExecutionEngine *engineBuilder;
     std::string functionName;
  public:
-    Execution(std::unique_ptr<llvm::Module>, std::string);
+    Execution(std::unique_ptr<llvm::Module>, const std::string);
     uint64_t getFunctionAddress();
 };
 

@@ -20,29 +20,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef VAR_HPP_
-#define VAR_HPP_
+#ifndef FUNC_HPP_
+#define FUNC_HPP_
 
-#include <string>
+#include <utility>
 #include <memory>
+#include <vector>
 
-#include "Expr.hpp"
 #include "ExprAST.hpp"
 
-class Var {
+class Func {
+ private:
+    std::shared_ptr<ExprAST> *ast;
  public:
-    // static std::vector<std::string> used_names;
-    static int name_count;
-    std::string name;
- public:
-    Var() {
-        name = "var" + std::to_string(name_count++);
+    Func() {
+        ast = nullptr;
     }
-    operator Expr() const {
-        std::shared_ptr<ExprAST> p(new VarExprAST(name));
-        return Expr(p);
+
+    // operator() {
+
+    // }
+
+
+    void set_arguments(std::vector<Var>);
+    template <typename... Args>void set_arguments(Args&&... args) {
+        std::vector<Var> collected_args{std::forward<Args>(args)...};
+        this->set_arguments(collected_args);
     }
-    // ~Var() { std::cout << "Var is deleted." << std::endl; }
 };
 
-#endif  // VAR_HPP_
+#endif  // FUNC_HPP_

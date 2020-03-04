@@ -23,6 +23,8 @@
 #ifndef EXPR_HPP_
 #define EXPR_HPP_
 
+#include <memory>
+
 #include "IRVisitor.hpp"
 
 class ExprAST;

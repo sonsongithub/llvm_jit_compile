@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <utility>
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -37,23 +38,27 @@
 #include "llvm/IR/IRBuilder.h"
 
 class Execution;
-class Expr;
+struct Expr;
+class Var;
 
 class IRVisitor {
  public:
-   Execution *execution;
-   llvm::IRBuilder<> *builder;
-   std::map<std::string, llvm::Value *> name2Value;
+    Execution *execution;
+    llvm::IRBuilder<> *builder;
+    std::map<std::string, llvm::Value *> name2Value;
  private:
-   std::unique_ptr<llvm::Module> module;
-   llvm::Function *function;
+    std::unique_ptr<llvm::Module> module;
+    llvm::Function *function;
  public:
-   IRVisitor();
-   ~IRVisitor();
-   llvm::Value* visit(Expr expr);
-   template <typename... Args>void set_arguments(Args&&... args);
-   void realise(Expr expr);
+    IRVisitor();
+    ~IRVisitor();
+    llvm::Value* visit(Expr expr);
+    void set_arguments(std::vector<Var>);
+    template <typename... Args>void set_arguments(Args&&... args) {
+        std::vector<Var> collected_args{std::forward<Args>(args)...};
+        this->set_arguments(collected_args);
+    }
+    void realise(Expr expr);
 };
 
 #endif  // IRVISITOR_HPP_
-
