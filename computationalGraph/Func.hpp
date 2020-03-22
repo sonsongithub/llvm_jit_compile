@@ -28,21 +28,33 @@
 #include <vector>
 
 #include "ExprAST.hpp"
+#include "Expr.hpp"
+
+class Var;
 
 class Func {
  private:
-    std::shared_ptr<ExprAST> *ast;
+    Expr expr;
+    std::vector<Var> arguments;
+
  public:
-    Func() {
-        ast = nullptr;
+    Expr& operator()(std::vector<Var>) {
+        return expr;
     }
 
-    // operator() {
+    Expr& operator()(std::vector<double>) {
+        return expr;
+    }
 
-    // }
-
+    template <typename... Args>
+    Expr& operator() (Args&&... args) {
+        std::vector<Var> collected_args{std::forward<Args>(args)...};
+        this->set_arguments(collected_args);
+        return this->operator()(collected_args);
+    }
 
     void set_arguments(std::vector<Var>);
+
     template <typename... Args>void set_arguments(Args&&... args) {
         std::vector<Var> collected_args{std::forward<Args>(args)...};
         this->set_arguments(collected_args);

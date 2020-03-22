@@ -26,34 +26,35 @@
 #include <vector>
 #include <iostream>
 
-#include "Var.hpp"
-#include "Expr.hpp"
-#include "ExprAST.hpp"
 #include "IRVisitor.hpp"
+#include "ExprAST.hpp"
+
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ADT/APFloat.h"
+
+#include "Var.hpp"
 #include "Execution.hpp"
-#include "Func.hpp"
+#include "VariableParserVisitor.hpp"
 
-int main() {
-    Var a, b;
+VariableParserVisitor::VariableParserVisitor() {
+}
 
-    Func f;
+void VariableParserVisitor::visit(Expr exp) {
+    // exp.accept(this);
+}
 
-    std::cout << "hoge" << std::endl;
-
-    IRVisitor* visitor = new IRVisitor();
-
-    visitor->set_arguments(a, b);
-
-    Expr d = a + b;
-
-    f(a, b) = d;
-
-    auto v = f(a, b);
-
-    d.value->dump();
-    visitor->realise(d);
-
-    delete visitor;
-
-    return 0;
+VariableParserVisitor::~VariableParserVisitor() {
 }

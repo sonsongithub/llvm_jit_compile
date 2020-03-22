@@ -20,10 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <utility>
+
 #include "ExprAST.hpp"
 #include "IRVisitor.hpp"
-
-#include <utility>
+#include "VariableParserVisitor.hpp"
 
 void VarExprAST::dump(int level) {
     for (int i = 0; i < level; i++) { std::cout << "-"; }
@@ -35,23 +36,32 @@ llvm::Value* VarExprAST::accept(IRVisitor* visitor) {
     return p;
 }
 
+void VarExprAST::accept(VariableParserVisitor* visitor) {
+    // this->name;
+}
+
 BinaryExprAST::BinaryExprAST(char operation, Expr a, Expr b) {
     lhs = std::move(a);
     rhs = std::move(b);
     op = operation;
 }
 
-llvm::Value* BinaryExprAST::accept(IRVisitor* visiter) {
+llvm::Value* BinaryExprAST::accept(IRVisitor* visitor) {
     std::cout << "accept - BinaryExprAST" << std::endl;
-    llvm::Value* left = visiter->visit(lhs);
-    llvm::Value* right = visiter->visit(rhs);
+    llvm::Value* left = visitor->visit(lhs);
+    llvm::Value* right = visitor->visit(rhs);
     switch (op) {
     case '+':
-        return visiter->builder->CreateFAdd(left, right, "addtmp");
+        return visitor->builder->CreateFAdd(left, right, "addtmp");
     case '*':
-        return visiter->builder->CreateFMul(left, right, "multmp");
+        return visitor->builder->CreateFMul(left, right, "multmp");
     }
     return nullptr;
+}
+
+void BinaryExprAST::accept(VariableParserVisitor* visitor) {
+    visitor->visit(lhs);
+    visitor->visit(rhs);
 }
 
 void BinaryExprAST::dump(int level) {

@@ -20,40 +20,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef VARIABLEPARSERVISITOR_HPP_
+#define VARIABLEPARSERVISITOR_HPP_
+
 #include <memory>
 #include <map>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <utility>
 
-#include "Var.hpp"
-#include "Expr.hpp"
-#include "ExprAST.hpp"
-#include "IRVisitor.hpp"
-#include "Execution.hpp"
-#include "Func.hpp"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 
-int main() {
-    Var a, b;
+class Execution;
+class Var;
+struct Expr;
 
-    Func f;
+class VariableParserVisitor {
+ public:
+ private:
+    std::unique_ptr<std::vector<std::string>> valueName;
 
-    std::cout << "hoge" << std::endl;
+ public:
+    VariableParserVisitor();
+    ~VariableParserVisitor();
+    void visit(Expr expr);
+};
 
-    IRVisitor* visitor = new IRVisitor();
-
-    visitor->set_arguments(a, b);
-
-    Expr d = a + b;
-
-    f(a, b) = d;
-
-    auto v = f(a, b);
-
-    d.value->dump();
-    visitor->realise(d);
-
-    delete visitor;
-
-    return 0;
-}
+#endif  // VARIABLEPARSERVISITOR_HPP_
