@@ -38,6 +38,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Mangler.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
@@ -91,15 +92,17 @@ void IRVisitor::set_arguments(std::vector<Var> collected_args) {
     BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
     builder->SetInsertPoint(basicBlock);
 
-    llvm::IRBuilder<> TmpB(&function->getEntryBlock(),
-                    function->getEntryBlock().begin());
-    llvm::AllocaInst *Alloca = TmpB.CreateAlloca(Type::getDoublePtrTy(TheContext), 0, "a");
+    // llvm::IRBuilder<> TmpB(&function->getEntryBlock(), function->getEntryBlock().begin());
+    // llvm::AllocaInst *Alloca = builder->CreateAlloca(Type::getDoublePtrTy(TheContext), 0, "a");
 
-    auto a = name2Value["pointer"];
+    // auto a = name2Value["pointer"];
 
-    builder->CreateStore(a, Alloca);
+    // builder->CreateStore(name2Value["pointer"], Alloca);
 
-    llvm::Value * v = builder->CreateLoad(a);
+    llvm::Value * v = builder->CreateLoad(name2Value["pointer"]);
+    
+    auto i = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.111));
+    builder->CreateStore(i, name2Value["pointer"]);
 
     auto arg1 = llvm::ConstantFP::get(TheContext, llvm::APFloat(3.14/3.0));
     builder->CreateRet(v);
@@ -124,6 +127,8 @@ void IRVisitor::set_arguments(std::vector<Var> collected_args) {
     std::cout << (*functionPointer)(&aaaa) << std::endl;
     aaaa = 14;
     std::cout << (*functionPointer)(&aaaa) << std::endl;
+
+    std::cout << aaaa << std::endl;
 }
 
 void IRVisitor::realise(Expr expr) {
