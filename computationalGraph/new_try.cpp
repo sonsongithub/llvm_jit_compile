@@ -34,7 +34,7 @@
 #include "Func.hpp"
 
 int main() {
-    Var a, b;
+    Var a, b, c;
 
     Func f;
 
@@ -42,16 +42,17 @@ int main() {
 
     IRVisitor* visitor = new IRVisitor();
 
-    visitor->set_arguments(a, b);
+    visitor->set_arguments(a, b, c);
 
     Expr d = a + b;
 
-    f(a, b) = d;
+    Var e = d + c;
 
-    auto v = f(a, b);
+    visitor->realise(e);
 
-    d.value->dump();
-    visitor->realise(d);
+    // d.value->dump();
+
+    e.value->dump();
 
     delete visitor;
 

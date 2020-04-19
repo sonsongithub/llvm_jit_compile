@@ -34,13 +34,22 @@ class Var {
     // static std::vector<std::string> used_names;
     static int name_count;
     std::string name;
+    std::shared_ptr<ExprAST> value;
  public:
     Var() {
         name = "var" + std::to_string(name_count++);
+        value = nullptr;
+    }
+    Var(Expr expr) {
+        value = expr.value;
     }
     operator Expr() const {
-        std::shared_ptr<ExprAST> p(new VarExprAST(name));
-        return Expr(p);
+        if (value == nullptr) {
+            std::shared_ptr<ExprAST> p(new VarExprAST(name));
+            return Expr(p);
+        } else {
+            return Expr(value);
+        }
     }
     // ~Var() { std::cout << "Var is deleted." << std::endl; }
 };

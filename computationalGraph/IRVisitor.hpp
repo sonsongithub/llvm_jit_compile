@@ -45,7 +45,7 @@ class IRVisitor {
  public:
     Execution *execution;
     llvm::IRBuilder<> *builder;
-    std::map<std::string, llvm::Value *> name2Value;
+    std::map<std::string, llvm::Value*> name2Value;
  private:
     std::unique_ptr<llvm::Module> module;
     llvm::Function *function;
