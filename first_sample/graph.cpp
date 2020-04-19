@@ -63,16 +63,6 @@ class IRVisitor {
     void visit(Func *func);
 };
 
-IRVisitor::IRVisitor() {
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    builder = new llvm::IRBuilder<>(TheContext);
-}
-
-IRVisitor::~IRVisitor() {
-    delete builder;
-}
-
 class Execution {
     llvm::ExecutionEngine *engineBuilder;
     std::string functionName;
@@ -80,24 +70,6 @@ class Execution {
     Execution(std::unique_ptr<llvm::Module>, std::string);
     uint64_t getFunctionAddress();
 };
-
-Execution::Execution(std::unique_ptr<llvm::Module> module, std::string name) {
-    // Builder JIT
-    functionName = name;
-    std::string errStr;
-    engineBuilder = llvm::EngineBuilder(std::move(module))
-        .setEngineKind(llvm::EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
-    }
-}
-
-uint64_t Execution::getFunctionAddress() {
-    return engineBuilder->getFunctionAddress(functionName);
-}
-
 
 class Variable {
  public:
@@ -119,28 +91,14 @@ class Func {
     double operator()(double a, double b, ...);
 };
 
-double Func::operator()(double a, double b, ...) {
-    if (execution) {
-        auto p = execution->getFunctionAddress();
-        auto f = reinterpret_cast<double(*)(double, double)>(p);
-        return f(a, b);
-    }
-    return 0;
+IRVisitor::IRVisitor() {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    builder = new llvm::IRBuilder<>(TheContext);
 }
 
-Func Variable::operator + (Variable obj) {
-    return Func('+', *(this), obj);
-}
-
-Func Variable::operator - (Variable obj) {
-    return Func('-', *(this), obj);
-}
-
-void Func::realize(std::unique_ptr<llvm::Module> module, std::string name) {
-    execution = new Execution(std::move(module), name);
-}
-
-void Func::accept(IRVisitor* visitor) {
+IRVisitor::~IRVisitor() {
+    delete builder;
 }
 
 void IRVisitor::visit(Variable *variable) {
@@ -213,6 +171,46 @@ void IRVisitor::visit(Func *func) {
     func->realize(std::move(module), function->getName());
 }
 
+Execution::Execution(std::unique_ptr<llvm::Module> module, std::string name) {
+    // Builder JIT
+    functionName = name;
+    std::string errStr;
+    engineBuilder = llvm::EngineBuilder(std::move(module))
+        .setEngineKind(llvm::EngineKind::JIT)
+        .setErrorStr(&errStr)
+        .create();
+    if (!engineBuilder) {
+        std::cout << "error: " << errStr << std::endl;
+    }
+}
+
+uint64_t Execution::getFunctionAddress() {
+    return engineBuilder->getFunctionAddress(functionName);
+}
+
+Func Variable::operator + (Variable obj) {
+    return Func('+', *(this), obj);
+}
+
+Func Variable::operator - (Variable obj) {
+    return Func('-', *(this), obj);
+}
+
+void Func::realize(std::unique_ptr<llvm::Module> module, std::string name) {
+    execution = new Execution(std::move(module), name);
+}
+
+void Func::accept(IRVisitor* visitor) {
+}
+
+double Func::operator()(double a, double b, ...) {
+    if (execution) {
+        auto p = execution->getFunctionAddress();
+        auto f = reinterpret_cast<double(*)(double, double)>(p);
+        return f(a, b);
+    }
+    return 0;
+}
 
 int main() {
     auto visitor = IRVisitor();

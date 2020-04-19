@@ -1,5 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2020 sonson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT W  ARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
-#include <memory>
 #include <map>
 #include <memory>
 #include <string>
@@ -23,6 +43,16 @@
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ADT/APFloat.h"
 
+// ; ModuleID = 'originalModule'
+// source_filename = \"originalModule\"
+//
+// define double @originalFunction(double* %p_a) {
+// entry:
+//   %0 = load double, double* %p_a
+//   %tempmul = fmul double %0, %0
+//   ret double %tempmul
+// }
+
 using namespace llvm;
 using namespace std;
 
@@ -44,10 +74,8 @@ int main() {
     auto functionName = "originalFunction";
 
     std::vector<Type *> Doubles(1, Type::getDoublePtrTy(TheContext));
-    FunctionType *functionType
-        = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
-    Function *function
-        = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
+    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
     // Set names for all arguments.
     // I'd like to use "zip" function, here.....
@@ -104,8 +132,7 @@ int main() {
     }
 
     // Execution
-    // a + b
-    
+    // a = a * a;
     double a = 10;
 
     cout << f(&a) << endl;
