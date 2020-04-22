@@ -3,5 +3,6 @@ alloca
 call
 graph
 pointer
+value_embed
 *.dSYM
 

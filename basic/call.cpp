@@ -41,7 +41,7 @@
 //   %addtmp = fadd double %tmphoge1, %b
 //   ret double %addtmp
 // }
-//
+
 // declare double @cos(double)
 
 using namespace llvm;
