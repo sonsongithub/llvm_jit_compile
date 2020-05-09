@@ -49,40 +49,68 @@ using namespace std;
 // Context for LLVM
 static LLVMContext TheContext;
 
-// ; ModuleID = 'originalModule'
-// source_filename = \"originalModule\"
-//
-// define double @originalFunction(double %var0, double %var1, double %var2, double %var3, double %var4, double %var5, double %var6, double %var7, double %var8, double %var9) {
-// entry:
-//   %addtmp = fadd double %var0, %var1
-//   %addtmp1 = fadd double %addtmp, %var2
-//   %addtmp2 = fadd double %addtmp1, %var3
-//   %addtmp3 = fadd double %addtmp2, %var4
-//   %addtmp4 = fadd double %addtmp3, %var5
-//   %addtmp5 = fadd double %addtmp4, %var6
-//   %addtmp6 = fadd double %addtmp5, %var7
-//   %addtmp7 = fadd double %addtmp6, %var8
-//   %addtmp8 = fadd double %addtmp7, %var9
-//   ret double %addtmp8
-// }
-//
-// define double @caller(double) {
-// entry2:
-//   %buf = load double, double* inttoptr (i64 4323303344 to double*)
-//   %buf1 = load double, double* inttoptr (i64 4323303352 to double*)
-//   %buf2 = load double, double* inttoptr (i64 4323303360 to double*)
-//   %buf3 = load double, double* inttoptr (i64 4323303368 to double*)
-//   %buf4 = load double, double* inttoptr (i64 4323303376 to double*)
-//   %buf5 = load double, double* inttoptr (i64 4323303384 to double*)
-//   %buf6 = load double, double* inttoptr (i64 4323303392 to double*)
-//   %buf7 = load double, double* inttoptr (i64 4323303400 to double*)
-//   %buf8 = load double, double* inttoptr (i64 4323303408 to double*)
-//   %buf9 = load double, double* inttoptr (i64 4323303416 to double*)
-//   %a = call double @originalFunction(double %buf, double %buf1, double %buf2, double %buf3, double %buf4, double %buf5, double %buf6, double %buf7, double %buf8, double %buf9)
-//   ret double %a
-// }
+class AdaptiveCallee {
+ public:
+    const int count;
+    ExecutionEngine *engineBuilder;
+    std::vector<double> argumentsBuffer;
+    Function *caller;
 
-Function *createCallee(Module* module, int count) {
+    explicit AdaptiveCallee(int c) : count(c) {
+        prepare();
+    }
+
+    template <typename... Args>
+    double operator() (Args&&... args) {
+        std::vector<double> collected_args{std::forward<Args>(args)...};
+        for (auto it = collected_args.begin(); it != collected_args.end(); it++) {
+            std::cout << *it << std::endl;
+        }
+        return execute();
+    }
+ private:
+    double execute();
+    void prepare();
+    Function *createCallee(Module* module, int count);
+    Function *createCaller(Function *callee, const std::vector<double> &arguments, Module* module);
+};
+
+double AdaptiveCallee::execute() {
+    auto f = reinterpret_cast<double(*)()>(engineBuilder->getFunctionAddress(caller->getName().str()));
+    if (f == NULL) {
+        throw 1;
+    }
+    return f();
+}
+
+void AdaptiveCallee::prepare() {
+    std::unique_ptr<Module> module(new llvm::Module("module", TheContext));
+
+    argumentsBuffer.clear();
+    for (int i = 0; i < count; i++) {
+        argumentsBuffer.push_back(static_cast<double>(i + 1));
+    }
+
+    try {
+        Function *callee = createCallee(module.get(), count);
+        caller = createCaller(callee, argumentsBuffer, module.get());
+
+        // Builder JIT
+        std::string errStr;
+        engineBuilder = EngineBuilder(std::move(module))
+            .setEngineKind(EngineKind::JIT)
+            .setErrorStr(&errStr)
+            .create();
+        if (!engineBuilder) {
+            std::cout << "error: " << errStr << std::endl;
+            assert(0);
+        }
+    } catch (...) {
+        assert(0);
+    }
+}
+
+Function *AdaptiveCallee::createCallee(Module* module, int count) {
     // define function
     // argument name list
     auto functionName = "originalFunction";
@@ -108,7 +136,7 @@ Function *createCallee(Module* module, int count) {
     }
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function); 
+    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
 
     // LLVM IR builder
     static IRBuilder<> builder(TheContext);
@@ -142,7 +170,7 @@ Function *createCallee(Module* module, int count) {
     return function;
 }
 
-Function *createCaller(Function *callee, const std::vector<double> &arguments, Module* module) {
+Function *AdaptiveCallee::createCaller(Function *callee, const std::vector<double> &arguments, Module* module) {
     // define function
     // argument name list
     auto functionName = "caller";
@@ -196,40 +224,7 @@ int main() {
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
-    // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", TheContext));
+    AdaptiveCallee obj(5);
 
-    int count = 10;
-
-    std::vector<double> array = {};
-
-    for (int i = 0; i < count; i++) {
-        array.push_back(static_cast<double>(i + 1));
-    }
-
-    try {
-        Function *callee = createCallee(module.get(), count);
-        Function *caller = createCaller(callee, array, module.get());
-
-        // Builder JIT
-        std::string errStr;
-        ExecutionEngine *engineBuilder = EngineBuilder(std::move(module))
-            .setEngineKind(EngineKind::JIT)
-            .setErrorStr(&errStr)
-            .create();
-        if (!engineBuilder) {
-            std::cout << "error: " << errStr << std::endl;
-            return 1;
-        }
-
-        // Get pointer to a function which is built by EngineBuilder.
-        auto f = reinterpret_cast<double(*)()>(engineBuilder->getFunctionAddress(caller->getName().str()));
-        if (f == NULL) {
-            throw 1;
-        }
-        cout << f() << endl;
-    } catch(...) {
-        cout << "Error" << endl;
-    }
-    return 0;
+    std::cout << obj(10.0, 20.0) << std::endl;
 }
