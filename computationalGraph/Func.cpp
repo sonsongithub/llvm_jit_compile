@@ -24,8 +24,30 @@
 
 #include "Func.hpp"
 #include "Var.hpp"
+#include "Execution.hpp"
 
-void Func::set_arguments(std::vector<Var> vars) {
-    std::cout << "set_arguments" << std::endl;
-    std::copy(vars.begin(), vars.end(), std::back_inserter(arguments));
+
+void Func::prepare(int count) {
+    argumentsBuffer.clear();
+    for (int i = 0; i < count; i++) {
+        argumentsBuffer.push_back(static_cast<double>(i + 1));
+    }
 }
+
+double Func::operator()(std::vector<double> arg) {
+    for (int i = 0; i < arg.size(); i++) {
+        argumentsBuffer[i] = arg[i];
+    }
+    auto f = reinterpret_cast<double(*)()>(engineBuilder->getFunctionAddress("caller"));
+    return f();
+}
+
+// Func::Func(std::unique_ptr<llvm::Module> module) {
+//     // Builder JIT
+//     execution = new Execution(std::move(module), "hoge");
+// }
+
+// double Func::set_arguments(std::vector<Var> vars) {
+//     std::cout << "set_arguments" << std::endl;
+//     std::copy(vars.begin(), vars.end(), std::back_inserter(arguments));
+// }

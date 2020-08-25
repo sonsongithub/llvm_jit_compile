@@ -36,16 +36,20 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
 
 class Execution;
 struct Expr;
 class Var;
+class Func;
 
 class IRVisitor {
  public:
-    Execution *execution;
+    llvm::ExecutionEngine *engineBuilder;
     llvm::IRBuilder<> *builder;
     std::map<std::string, llvm::Value*> name2Value;
+    std::vector<Var> args;
  private:
     std::unique_ptr<llvm::Module> module;
     llvm::Function *function;
@@ -58,7 +62,9 @@ class IRVisitor {
         std::vector<Var> collected_args{std::forward<Args>(args)...};
         this->set_arguments(collected_args);
     }
-    void realise(Expr expr);
+    Func* realise(Expr expr);
+    uint64_t getFunctionAddress();
+    llvm::Function *createCaller(llvm::Function *callee, const std::vector<double> &arguments, llvm::Module* module);
 };
 
 #endif  // IRVISITOR_HPP_

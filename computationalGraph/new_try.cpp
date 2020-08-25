@@ -36,25 +36,23 @@
 int main() {
     Var a, b, c;
 
-    Func f;
-
     std::cout << "hoge" << std::endl;
 
     IRVisitor* visitor = new IRVisitor();
 
     visitor->set_arguments(a, b, c);
 
-    Expr d = a + b;
+    Expr e = a + b * c;
 
-    Var e = d + c;
+    Func *f = visitor->realise(e);
 
-    visitor->realise(e);
-
-    // d.value->dump();
+    std::cout << (*f)(111.0, 2.0, 20.0) << std::endl;
 
     e.value->dump();
 
     delete visitor;
+
+    delete f;
 
     return 0;
 }

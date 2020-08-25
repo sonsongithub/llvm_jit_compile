@@ -30,35 +30,43 @@
 #include "ExprAST.hpp"
 #include "Expr.hpp"
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+
 class Var;
+class Execution;
 
 class Func {
- private:
-    Expr expr;
-    std::vector<Var> arguments;
+ public:
+    std::vector<double> argumentsBuffer;
+    llvm::ExecutionEngine *engineBuilder;
 
  public:
-    Expr& operator()(std::vector<Var>) {
-        return expr;
-    }
 
-    Expr& operator()(std::vector<double>) {
-        return expr;
-    }
+    void prepare(int count);
+    // explicit Func(std::unique_ptr<llvm::Module>);
+    // Expr& operator()(std::vector<Var>) {
+    //     return expr;
+    // }
+
+    double operator()(std::vector<double>);
 
     template <typename... Args>
-    Expr& operator() (Args&&... args) {
-        std::vector<Var> collected_args{std::forward<Args>(args)...};
-        this->set_arguments(collected_args);
+    double operator() (Args&&... args) {
+        std::vector<double> collected_args{std::forward<Args>(args)...};
         return this->operator()(collected_args);
     }
 
-    void set_arguments(std::vector<Var>);
+    // void set_arguments(std::vector<double>);
 
-    template <typename... Args>void set_arguments(Args&&... args) {
-        std::vector<Var> collected_args{std::forward<Args>(args)...};
-        this->set_arguments(collected_args);
-    }
+    // template <typename... Args>void set_arguments(Args&&... args) {
+    //     std::vector<double> collected_args{std::forward<Args>(args)...};
+    //     this->set_arguments(collected_args);
+    // }
 };
 
 #endif  // FUNC_HPP_
