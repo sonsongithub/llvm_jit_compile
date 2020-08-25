@@ -203,17 +203,15 @@ Func* IRVisitor::realise(Expr expr) {
         std::cout << ": Error module!\n" << std::endl;
     }
 
-    // Builder JIT
+    // auto p = new EngineBuilder(std::move(module));
+
+    // p->create();
+
     std::string errStr;
-    engineBuilder = EngineBuilder(std::move(module))
-        .setEngineKind(EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
-        assert(0);
-    }
-    func->engineBuilder = engineBuilder;
+
+    EngineBuilder builder(std::move(module));
+
+    func->executionEngine = builder.create();
 
     return func;
 }

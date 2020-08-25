@@ -46,13 +46,14 @@ int main() {
 
     Func *f = visitor->realise(e);
 
+    delete visitor;
+    
     std::cout << (*f)(111.0, 2.0, 20.0) << std::endl;
 
     e.value->dump();
 
-    delete visitor;
-
     delete f;
+
 
     return 0;
 }

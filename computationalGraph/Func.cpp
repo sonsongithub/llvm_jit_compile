@@ -27,6 +27,10 @@
 #include "Execution.hpp"
 
 
+Func::~Func() {
+    delete executionEngine;
+}
+
 void Func::prepare(int count) {
     argumentsBuffer.clear();
     for (int i = 0; i < count; i++) {
@@ -38,7 +42,7 @@ double Func::operator()(std::vector<double> arg) {
     for (int i = 0; i < arg.size(); i++) {
         argumentsBuffer[i] = arg[i];
     }
-    auto f = reinterpret_cast<double(*)()>(engineBuilder->getFunctionAddress("caller"));
+    auto f = reinterpret_cast<double(*)()>(executionEngine->getFunctionAddress("caller"));
     return f();
 }
 

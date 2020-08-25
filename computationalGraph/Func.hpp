@@ -43,10 +43,10 @@ class Execution;
 class Func {
  public:
     std::vector<double> argumentsBuffer;
-    llvm::ExecutionEngine *engineBuilder;
+    llvm::ExecutionEngine *executionEngine;
 
  public:
-
+    ~Func();
     void prepare(int count);
     // explicit Func(std::unique_ptr<llvm::Module>);
     // Expr& operator()(std::vector<Var>) {
