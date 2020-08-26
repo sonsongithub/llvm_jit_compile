@@ -31,7 +31,6 @@
 
 class Var {
  public:
-    // static std::vector<std::string> used_names;
     static int name_count;
     std::string name;
     std::shared_ptr<ExprAST> value;

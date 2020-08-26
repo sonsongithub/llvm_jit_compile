@@ -49,9 +49,6 @@
 #include "Var.hpp"
 #include "Func.hpp"
 
-using namespace llvm;
-using namespace std;
-
 static llvm::LLVMContext TheContext;
 
 IRVisitor::IRVisitor() {
@@ -71,6 +68,11 @@ IRVisitor::~IRVisitor() {
 }
 
 llvm::Function* IRVisitor::create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr) {
+    using llvm::Function;
+    using llvm::FunctionType;
+    using llvm::BasicBlock;
+    using llvm::Type;
+
     // arguments double to ptr
     std::vector<llvm::Type *> Doubles(argumentPlacefolders.size(), Type::getDoubleTy(TheContext));
     FunctionType *funcType = llvm::FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
@@ -108,7 +110,12 @@ llvm::Function* IRVisitor::create_callee(const std::vector<Var> &argumentPlacefo
     return callee;
 }
 
-Function *IRVisitor::create_caller(Function *callee, const std::vector<double> &arguments) {
+llvm::Function *IRVisitor::create_caller(llvm::Function *callee, const std::vector<double> &arguments, std::string name) {
+    using llvm::Function;
+    using llvm::FunctionType;
+    using llvm::BasicBlock;
+    using llvm::Type;
+
     // define function
     // argument name list
     auto functionName = "caller";
@@ -122,7 +129,7 @@ Function *IRVisitor::create_caller(Function *callee, const std::vector<double> &
     // Create a new basic block to start insertion into.
     BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", caller);
 
-    static IRBuilder<> builder(TheContext);
+    static llvm::IRBuilder<> builder(TheContext);
 
     builder.SetInsertPoint(basicBlock);
 
@@ -131,7 +138,7 @@ Function *IRVisitor::create_caller(Function *callee, const std::vector<double> &
 
     for (int i = 0; i < arguments.size(); i++) {
         u_int64_t p = (u_int64_t)&arguments[i];
-        llvm::Constant *constant = llvm::ConstantPointerNull::getIntegerValue(llvm::PointerType::getDoublePtrTy(TheContext), APInt(64, 1, &p));
+        llvm::Constant *constant = llvm::ConstantPointerNull::getIntegerValue(llvm::PointerType::getDoublePtrTy(TheContext), llvm::APInt(64, 1, &p));
         auto temp = builder.CreateLoad(constant, "buf");
         arguments_values.push_back(temp);
     }
@@ -159,6 +166,6 @@ Function *IRVisitor::create_caller(Function *callee, const std::vector<double> &
 }
 
 llvm::ExecutionEngine *IRVisitor::create_engine() {
-    EngineBuilder builder(std::move(module));
+    llvm::EngineBuilder builder(std::move(module));
     return builder.create();
 }

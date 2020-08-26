@@ -24,7 +24,6 @@
 
 #include "ExprAST.hpp"
 #include "IRVisitor.hpp"
-#include "VariableParserVisitor.hpp"
 
 void VarExprAST::dump(int level) {
     for (int i = 0; i < level; i++) { std::cout << "-"; }
@@ -51,6 +50,8 @@ llvm::Value* BinaryExprAST::accept(IRVisitor* visitor) {
         return visitor->builder->CreateFAdd(left, right, "addtmp");
     case '*':
         return visitor->builder->CreateFMul(left, right, "multmp");
+    case '/':
+        return visitor->builder->CreateFDiv(left, right, "divtmp");
     }
     return nullptr;
 }

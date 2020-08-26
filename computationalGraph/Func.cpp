@@ -25,7 +25,6 @@
 
 #include "Func.hpp"
 #include "Var.hpp"
-#include "Execution.hpp"
 
 Func::Func() {
     executionEngine = NULL;
@@ -53,17 +52,14 @@ void Func::set_arguments(std::vector<Var> arg) {
 }
 
 void Func::realise() {
-
     using llvm::Function;
     using llvm::FunctionType;
     using llvm::BasicBlock;
     using llvm::Type;
 
     IRVisitor* visitor = new IRVisitor();
-
     llvm::Function* callee = visitor->create_callee(argumentPlacefolders, "callee", expr);
-    llvm::Function* caller = visitor->create_caller(callee, argumentsBuffer);
-
+    llvm::Function* caller = visitor->create_caller(callee, argumentsBuffer, "caller");
     executionEngine = visitor->create_engine();
 
     delete visitor;

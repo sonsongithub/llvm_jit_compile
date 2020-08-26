@@ -37,3 +37,8 @@ Expr operator* (Expr lhs, Expr rhs) {
     std::shared_ptr<ExprAST> p(new BinaryExprAST('*', lhs, rhs));
     return Expr(p);
 }
+
+Expr operator/ (Expr lhs, Expr rhs) {
+    std::shared_ptr<ExprAST> p(new BinaryExprAST('/', lhs, rhs));
+    return Expr(p);
+}

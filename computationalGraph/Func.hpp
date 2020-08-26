@@ -50,11 +50,10 @@ class Func {
  public:
     Func();
     ~Func();
-    
+
     void realise();
 
     Expr& operator()(std::vector<Var> arg) {
-        std::cout << "Expr& operator()(std::vector<Var>)" << std::endl;
         this->set_arguments(arg);
         return expr;
     }
@@ -66,14 +65,7 @@ class Func {
         std::vector<double> collected_args{x, std::forward<Args>(args)...};
         return this->operator()(collected_args);
     }
-
     void set_arguments(std::vector<Var>);
-
-    // template <typename... Args>void set_arguments(Args&&... args) {
-    //     std::vector<double> collected_args{std::forward<Args>(args)...};
-    //     this->set_arguments(collected_args);
-    // }
-
     template <typename... Args>Expr& operator()(Var x, Args&&... args) {
         std::vector<Var> collected_args{x, std::forward<Args>(args)...};
         this->set_arguments(collected_args);

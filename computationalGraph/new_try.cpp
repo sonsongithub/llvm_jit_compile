@@ -27,10 +27,6 @@
 #include <iostream>
 
 #include "Var.hpp"
-#include "Expr.hpp"
-#include "ExprAST.hpp"
-#include "IRVisitor.hpp"
-#include "Execution.hpp"
 #include "Func.hpp"
 
 int main() {
@@ -41,9 +37,9 @@ int main() {
     f.realise();
     std::cout << f(111.0, 2.0, 3.0) << std::endl;
 
-    f(a, b) = a + b;
+    f(a, b) = a / (b + 1);
     f.realise();
-    std::cout << f(111.0, 2.0) << std::endl;
+    std::cout << f(11.0, 2.0) << std::endl;
 
     return 0;
 }

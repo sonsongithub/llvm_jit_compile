@@ -38,7 +38,7 @@ struct Expr {
 };
 
 Expr operator+ (Expr lhs, Expr rhs);
-
 Expr operator* (Expr lhs, Expr rhs);
+Expr operator/ (Expr lhs, Expr rhs);
 
 #endif  // EXPR_HPP_
