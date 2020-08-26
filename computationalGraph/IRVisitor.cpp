@@ -47,7 +47,6 @@
 #include "llvm/ADT/APFloat.h"
 
 #include "Var.hpp"
-#include "Execution.hpp"
 #include "Func.hpp"
 
 using namespace llvm;
@@ -71,37 +70,45 @@ IRVisitor::~IRVisitor() {
     delete builder;
 }
 
-void IRVisitor::set_arguments(std::vector<Var> collected_args) {
-    using llvm::Function;
-    using llvm::FunctionType;
-    using llvm::BasicBlock;
-    using llvm::Type;
+llvm::Function* IRVisitor::create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr) {
+    // arguments double to ptr
+    std::vector<llvm::Type *> Doubles(argumentPlacefolders.size(), Type::getDoubleTy(TheContext));
+    FunctionType *funcType = llvm::FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
 
-    args = collected_args;
+    llvm::Function *callee = Function::Create(funcType, Function::ExternalLinkage, name, module.get());
 
-    // std::cout << collected_args.size() << std::endl;
+    // Set names for all arguments.
+    unsigned idx = 0;
+    for (auto &arg : callee->args()) {
+        arg.setName(argumentPlacefolders[idx++].name);
+    }
 
-    // // arguments double to ptr
-    // std::vector<llvm::Type *> Doubles(collected_args.size(), Type::getDoubleTy(TheContext));
-    // FunctionType *funcType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    // Record the function arguments in the NamedValues map.
+    name2Value.clear();
+    for (auto &arg : callee->args()) {
+        name2Value[std::string(arg.getName())] = &arg;
+    }
 
-    // std::string name = "hoge";
-    // function = Function::Create(funcType, Function::ExternalLinkage, name, module.get());
+    // Create a new basic block to start insertion into.
+    llvm::BasicBlock *basicBlock = llvm::BasicBlock::Create(TheContext, "entry", callee);
+    builder->SetInsertPoint(basicBlock);
 
-    // // Set names for all arguments.
-    // unsigned idx = 0;
-    // for (auto &arg : function->args()) {
-    //     arg.setName(collected_args[idx++].name);
-    // }
+    llvm::Value *RetVal = this->visit(expr);
 
-    // // Record the function arguments in the NamedValues map.
-    // name2Value.clear();
-    // for (auto &arg : function->args()) {
-    //     name2Value[std::string(arg.getName())] = &arg;
-    // }
+    builder->CreateRet(RetVal);
+
+    // varify LLVM IR
+    if (verifyFunction(*callee, &llvm::errs())) {
+        throw 1;
+    }
+
+    // confirm LLVM IR
+    module->print(llvm::outs(), nullptr);
+
+    return callee;
 }
 
-Function *IRVisitor::createCaller(Function *callee, const std::vector<double> &arguments, Module* module) {
+Function *IRVisitor::create_caller(Function *callee, const std::vector<double> &arguments) {
     // define function
     // argument name list
     auto functionName = "caller";
@@ -110,10 +117,10 @@ Function *IRVisitor::createCaller(Function *callee, const std::vector<double> &a
     // create function type
     FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), vacant, false);
     // create function in the module.
-    Function *caller = Function::Create(functionType, Function::ExternalLinkage, functionName, module);
+    Function *caller = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry2", caller);
+    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", caller);
 
     static IRBuilder<> builder(TheContext);
 
@@ -151,72 +158,7 @@ Function *IRVisitor::createCaller(Function *callee, const std::vector<double> &a
     return caller;
 }
 
-Func* IRVisitor::realise(Expr expr) {
-    using llvm::Function;
-    using llvm::FunctionType;
-    using llvm::Type;
-
-    Func *func = new Func();
-
-    std::cout << args.size() << std::endl;
-
-    func->prepare(args.size());
-
-    // arguments double to ptr
-    std::vector<llvm::Type *> Doubles(args.size(), Type::getDoubleTy(TheContext));
-    FunctionType *funcType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
-
-    std::string name = "callee";
-    function = Function::Create(funcType, Function::ExternalLinkage, name, module.get());
-
-    // Set names for all arguments.
-    unsigned idx = 0;
-    for (auto &arg : function->args()) {
-        arg.setName(args[idx++].name);
-    }
-
-    // Record the function arguments in the NamedValues map.
-    name2Value.clear();
-    for (auto &arg : function->args()) {
-        name2Value[std::string(arg.getName())] = &arg;
-    }
-
-    // Create a new basic block to start insertion into.
-    llvm::BasicBlock *basicBlock = llvm::BasicBlock::Create(TheContext, "entry", function);
-    builder->SetInsertPoint(basicBlock);
-
-    llvm::Value *RetVal = visit(expr);
-
-    builder->CreateRet(RetVal);
-
-    // varify LLVM IR
-    if (verifyFunction(*function)) {
-        std::cout << ": Error constructing function!\n" << std::endl;
-    }
-
-    Function *caller = createCaller(function, func->argumentsBuffer, module.get());
-
-    module->print(llvm::outs(), nullptr);
-
-    // confirm the current module status
-    if (verifyModule(*module)) {
-        std::cout << ": Error module!\n" << std::endl;
-    }
-
-    // auto p = new EngineBuilder(std::move(module));
-
-    // p->create();
-
-    std::string errStr;
-
+llvm::ExecutionEngine *IRVisitor::create_engine() {
     EngineBuilder builder(std::move(module));
-
-    func->executionEngine = builder.create();
-
-    return func;
-}
-
-uint64_t IRVisitor::getFunctionAddress() {
-    return 0;
-    // return execution->getFunctionAddress();
+    return builder.create();
 }

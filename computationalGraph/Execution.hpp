@@ -36,13 +36,13 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 
-class Execution {
- public:
-    llvm::ExecutionEngine *engineBuilder;
-    std::string functionName;
- public:
-    Execution(std::unique_ptr<llvm::Module>, const std::string);
-    uint64_t getFunctionAddress();
-};
+// class Execution {
+//  public:
+//     llvm::ExecutionEngine *executionEngine;
+//     std::string functionName;
+//  public:
+//     Execution(std::unique_ptr<llvm::Module>, const std::string);
+//     uint64_t getFunctionAddress();
+// };
 
 #endif  // EXECUTION_HPP_

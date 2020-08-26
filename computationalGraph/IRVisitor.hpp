@@ -46,25 +46,17 @@ class Func;
 
 class IRVisitor {
  public:
-    llvm::ExecutionEngine *engineBuilder;
     llvm::IRBuilder<> *builder;
     std::map<std::string, llvm::Value*> name2Value;
-    std::vector<Var> args;
  private:
     std::unique_ptr<llvm::Module> module;
-    llvm::Function *function;
  public:
     IRVisitor();
     ~IRVisitor();
     llvm::Value* visit(Expr expr);
-    void set_arguments(std::vector<Var>);
-    template <typename... Args>void set_arguments(Args&&... args) {
-        std::vector<Var> collected_args{std::forward<Args>(args)...};
-        this->set_arguments(collected_args);
-    }
-    Func* realise(Expr expr);
-    uint64_t getFunctionAddress();
-    llvm::Function *createCaller(llvm::Function *callee, const std::vector<double> &arguments, llvm::Module* module);
+    llvm::Function* create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr);
+    llvm::Function *create_caller(llvm::Function *callee, const std::vector<double> &arguments);
+    llvm::ExecutionEngine *create_engine();
 };
 
 #endif  // IRVISITOR_HPP_

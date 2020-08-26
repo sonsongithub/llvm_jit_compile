@@ -36,10 +36,6 @@ llvm::Value* VarExprAST::accept(IRVisitor* visitor) {
     return p;
 }
 
-void VarExprAST::accept(VariableParserVisitor* visitor) {
-    // this->name;
-}
-
 BinaryExprAST::BinaryExprAST(char operation, Expr a, Expr b) {
     lhs = std::move(a);
     rhs = std::move(b);
@@ -57,11 +53,6 @@ llvm::Value* BinaryExprAST::accept(IRVisitor* visitor) {
         return visitor->builder->CreateFMul(left, right, "multmp");
     }
     return nullptr;
-}
-
-void BinaryExprAST::accept(VariableParserVisitor* visitor) {
-    visitor->visit(lhs);
-    visitor->visit(rhs);
 }
 
 void BinaryExprAST::dump(int level) {

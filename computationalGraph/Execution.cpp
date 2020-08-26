@@ -24,19 +24,19 @@
 
 #include <utility>
 
-Execution::Execution(std::unique_ptr<llvm::Module> module, const std::string name) {
-    // Builder JIT
-    functionName = name;
-    std::string errStr;
-    engineBuilder = llvm::EngineBuilder(std::move(module))
-        .setEngineKind(llvm::EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
-    }
-}
+// Execution::Execution(std::unique_ptr<llvm::Module> module, const std::string name) {
+//     // Builder JIT
+//     functionName = name;
+//     std::string errStr;
+//     executionEngine = llvm::EngineBuilder(std::move(module))
+//         .setEngineKind(llvm::EngineKind::JIT)
+//         .setErrorStr(&errStr)
+//         .create();
+//     if (!executionEngine) {
+//         std::cout << "error: " << errStr << std::endl;
+//     }
+// }
 
-uint64_t Execution::getFunctionAddress() {
-    return engineBuilder->getFunctionAddress(functionName);
-}
+// uint64_t Execution::getFunctionAddress() {
+//     return executionEngine->getFunctionAddress(functionName);
+// }

@@ -39,7 +39,6 @@
 #include "Expr.hpp"
 
 class IRVisitor;
-class VariableParserVisitor;
 
 /// ExprAST - Base class for all expression nodes.
 class ExprAST {
@@ -48,7 +47,6 @@ class ExprAST {
     virtual ~ExprAST() = default;
     virtual void dump(int level = 0) = 0;
     virtual llvm::Value* accept(IRVisitor* builder) = 0;
-    virtual void accept(VariableParserVisitor* visitor) = 0;
 };
 
 /// VarExprAST - Expression class for referencing a Var, like "a".
@@ -60,7 +58,6 @@ class VarExprAST : public ExprAST {
     // ~VarExprAST() { std::cout << "VarExprAST is deleted." << std::endl; }
     void dump(int level = 0) override;
     llvm::Value* accept(IRVisitor* visitor) override;
-    void accept(VariableParserVisitor* visitor) override;
 };
 
 /// BinaryExprAST - Expression class for a binary operator.
@@ -74,7 +71,6 @@ class BinaryExprAST : public ExprAST {
     // ~BinaryExprAST() { std::cout << "BinaryExprAST is deleted." << std::endl; }
     void dump(int level = 0) override;
     llvm::Value* accept(IRVisitor* builder) override;
-    void accept(VariableParserVisitor* visitor) override;
 };
 
 #endif  // EXPRAST_HPP_

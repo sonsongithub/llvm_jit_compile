@@ -51,7 +51,6 @@ class Var {
             return Expr(value);
         }
     }
-    // ~Var() { std::cout << "Var is deleted." << std::endl; }
 };
 
 #endif  // VAR_HPP_

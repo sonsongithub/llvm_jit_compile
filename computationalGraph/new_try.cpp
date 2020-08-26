@@ -34,26 +34,16 @@
 #include "Func.hpp"
 
 int main() {
+    Func f;
     Var a, b, c;
 
-    std::cout << "hoge" << std::endl;
+    f(a, b, c) = a + b * c * c;
+    f.realise();
+    std::cout << f(111.0, 2.0, 3.0) << std::endl;
 
-    IRVisitor* visitor = new IRVisitor();
-
-    visitor->set_arguments(a, b, c);
-
-    Expr e = a + b * c;
-
-    Func *f = visitor->realise(e);
-
-    delete visitor;
-    
-    std::cout << (*f)(111.0, 2.0, 20.0) << std::endl;
-
-    e.value->dump();
-
-    delete f;
-
+    f(a, b) = a + b;
+    f.realise();
+    std::cout << f(111.0, 2.0) << std::endl;
 
     return 0;
 }

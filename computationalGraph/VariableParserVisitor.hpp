@@ -37,19 +37,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 
-class Execution;
-class Var;
-struct Expr;
+// class Execution;
+// class Var;
+// struct Expr;
 
-class VariableParserVisitor {
- public:
- private:
-    std::unique_ptr<std::vector<std::string>> valueName;
+// class VariableParserVisitor {
+//  public:
+//  private:
+//     std::unique_ptr<std::vector<std::string>> valueName;
 
- public:
-    VariableParserVisitor();
-    ~VariableParserVisitor();
-    void visit(Expr expr);
-};
+//  public:
+//     VariableParserVisitor();
+//     ~VariableParserVisitor();
+//     void visit(Expr expr);
+// };
 
 #endif  // VARIABLEPARSERVISITOR_HPP_

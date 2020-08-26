@@ -21,21 +21,18 @@
 // SOFTWARE.
 
 #include <algorithm>
+#include <string>
 
 #include "Func.hpp"
 #include "Var.hpp"
 #include "Execution.hpp"
 
+Func::Func() {
+    executionEngine = NULL;
+}
 
 Func::~Func() {
     delete executionEngine;
-}
-
-void Func::prepare(int count) {
-    argumentsBuffer.clear();
-    for (int i = 0; i < count; i++) {
-        argumentsBuffer.push_back(static_cast<double>(i + 1));
-    }
 }
 
 double Func::operator()(std::vector<double> arg) {
@@ -46,12 +43,28 @@ double Func::operator()(std::vector<double> arg) {
     return f();
 }
 
-// Func::Func(std::unique_ptr<llvm::Module> module) {
-//     // Builder JIT
-//     execution = new Execution(std::move(module), "hoge");
-// }
+void Func::set_arguments(std::vector<Var> arg) {
+    argumentPlacefolders.clear();
+    argumentPlacefolders = arg;
+    argumentsBuffer.clear();
+    for (int i = 0; i < argumentPlacefolders.size(); i++) {
+        argumentsBuffer.push_back(static_cast<double>(0));
+    }
+}
 
-// double Func::set_arguments(std::vector<Var> vars) {
-//     std::cout << "set_arguments" << std::endl;
-//     std::copy(vars.begin(), vars.end(), std::back_inserter(arguments));
-// }
+void Func::realise() {
+
+    using llvm::Function;
+    using llvm::FunctionType;
+    using llvm::BasicBlock;
+    using llvm::Type;
+
+    IRVisitor* visitor = new IRVisitor();
+
+    llvm::Function* callee = visitor->create_callee(argumentPlacefolders, "callee", expr);
+    llvm::Function* caller = visitor->create_caller(callee, argumentsBuffer);
+
+    executionEngine = visitor->create_engine();
+
+    delete visitor;
+}
