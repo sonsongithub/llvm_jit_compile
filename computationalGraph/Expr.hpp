@@ -33,6 +33,7 @@ struct Expr {
     std::shared_ptr<ExprAST> value;
  public:
     Expr() = default;
+    Expr(double);
     explicit Expr(std::shared_ptr<ExprAST> ast) : value(ast) {}
     llvm::Value* accept(IRVisitor* builder);
 };

@@ -67,6 +67,10 @@ IRVisitor::~IRVisitor() {
     delete builder;
 }
 
+llvm::Value* IRVisitor::createValue(double value) {
+    return llvm::ConstantFP::get(TheContext, llvm::APFloat(value));
+}
+
 llvm::Function* IRVisitor::create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr) {
     using llvm::Function;
     using llvm::FunctionType;

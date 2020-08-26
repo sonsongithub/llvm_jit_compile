@@ -60,6 +60,16 @@ class VarExprAST : public ExprAST {
     llvm::Value* accept(IRVisitor* visitor) override;
 };
 
+/// NumberExprAST - Expression class for referencing an invariables, like "2.0".
+class NumberExprAST : public ExprAST {
+    double value;
+
+ public:
+    NumberExprAST(double value) : value(value) {}
+    void dump(int level = 0) override;
+    llvm::Value* accept(IRVisitor* visitor) override;
+};
+
 /// BinaryExprAST - Expression class for a binary operator.
 class BinaryExprAST : public ExprAST {
     char op;

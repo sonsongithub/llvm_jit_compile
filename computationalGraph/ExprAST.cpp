@@ -35,6 +35,15 @@ llvm::Value* VarExprAST::accept(IRVisitor* visitor) {
     return p;
 }
 
+void NumberExprAST::dump(int level) {
+    for (int i = 0; i < level; i++) { std::cout << "-"; }
+    std::cout << "NumberExprAST" << std::endl;
+}
+
+llvm::Value* NumberExprAST::accept(IRVisitor* visitor) {
+    return visitor->createValue(value);
+}
+
 BinaryExprAST::BinaryExprAST(char operation, Expr a, Expr b) {
     lhs = std::move(a);
     rhs = std::move(b);

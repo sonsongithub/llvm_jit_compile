@@ -20,10 +20,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <memory>
-#include <map>
-#include <string>
-#include <vector>
 #include <iostream>
 
 #include "Var.hpp"
@@ -35,11 +31,11 @@ int main() {
 
     f(a, b, c) = a + b * c * c;
     f.realise();
-    std::cout << f(111.0, 2.0, 3.0) << std::endl;
+    // std::cout << f(111.0, 2.0, 3.0) << std::endl;
 
-    f(a, b) = a / (b + 1);
-    f.realise();
-    std::cout << f(11.0, 2.0) << std::endl;
+    // f(a, b) = a + b;
+    // f.realise();
+    // std::cout << f(12.0, 2.0) << std::endl;
 
     return 0;
 }

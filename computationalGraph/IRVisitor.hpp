@@ -55,6 +55,7 @@ class IRVisitor {
     ~IRVisitor();
     llvm::Value* visit(Expr expr);
     llvm::ExecutionEngine *create_engine();
+    llvm::Value* createValue(double value);
     llvm::Function* create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr);
     llvm::Function* create_caller(llvm::Function *callee, const std::vector<double> &arguments, std::string name);
 };

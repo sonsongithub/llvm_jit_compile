@@ -28,6 +28,11 @@ llvm::Value* Expr::accept(IRVisitor* builder) {
     return value->accept(builder);
 }
 
+Expr::Expr(double v) {
+    std::shared_ptr<ExprAST> p(new NumberExprAST(v));
+    value = p;
+}
+
 Expr operator+ (Expr lhs, Expr rhs) {
     std::shared_ptr<ExprAST> p(new BinaryExprAST('+', lhs, rhs));
     return Expr(p);
