@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <utility>
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -81,6 +82,36 @@ class BinaryExprAST : public ExprAST {
     // ~BinaryExprAST() { std::cout << "BinaryExprAST is deleted." << std::endl; }
     void dump(int level = 0) override;
     llvm::Value* accept(IRVisitor* builder) override;
+};
+
+class Sin: public ExprAST {
+    Expr arg;
+ public:
+    explicit Sin(Expr a);
+    void dump(int level = 0) override;
+    llvm::Value* accept(IRVisitor* builder) override;
+};
+
+class Pow: public ExprAST {
+    Expr a;
+    Expr b;
+ public:
+    explicit Pow(Expr a, Expr b);
+    void dump(int level = 0) override;
+    llvm::Value* accept(IRVisitor* builder) override;
+};
+
+class F {
+ public:
+    static Expr sin(Expr a) {
+        std::shared_ptr<ExprAST> p(new Sin(a));
+        return Expr(p);
+    }
+
+    static Expr pow(Expr a, Expr b) {
+        std::shared_ptr<ExprAST> p(new Pow(a, b));
+        return Expr(p);
+    }
 };
 
 #endif  // EXPRAST_HPP_

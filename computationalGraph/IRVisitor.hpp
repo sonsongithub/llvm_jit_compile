@@ -48,7 +48,6 @@ class IRVisitor {
  public:
     llvm::IRBuilder<> *builder;
     std::map<std::string, llvm::Value*> name2Value;
- private:
     std::unique_ptr<llvm::Module> module;
  public:
     IRVisitor();
@@ -56,6 +55,7 @@ class IRVisitor {
     llvm::Value* visit(Expr expr);
     llvm::ExecutionEngine *create_engine();
     llvm::Value* createValue(double value);
+    llvm::LLVMContext* context();
     llvm::Function* create_callee(const std::vector<Var> &argumentPlacefolders, std::string name, Expr expr);
     llvm::Function* create_caller(llvm::Function *callee, const std::vector<double> &arguments, std::string name);
 };

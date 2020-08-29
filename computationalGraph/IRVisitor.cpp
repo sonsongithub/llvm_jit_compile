@@ -58,6 +58,10 @@ IRVisitor::IRVisitor() {
     module = llvm::make_unique<llvm::Module>("abc", TheContext);
 }
 
+llvm::LLVMContext* IRVisitor::context() {
+    return &TheContext;
+}
+
 llvm::Value* IRVisitor::visit(Expr exp) {
     std::cout << "Visit" << std::endl;
     return exp.accept(this);
@@ -107,9 +111,6 @@ llvm::Function* IRVisitor::create_callee(const std::vector<Var> &argumentPlacefo
     if (verifyFunction(*callee, &llvm::errs())) {
         throw 1;
     }
-
-    // confirm LLVM IR
-    module->print(llvm::outs(), nullptr);
 
     return callee;
 }

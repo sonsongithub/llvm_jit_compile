@@ -71,3 +71,48 @@ void BinaryExprAST::dump(int level) {
     lhs.value->dump(level + 1);
     rhs.value->dump(level + 1);
 }
+
+Sin::Sin(Expr a) {
+    arg = std::move(a);
+}
+
+llvm::Value* Sin::accept(IRVisitor* visitor) {
+    llvm::Value* argValue = visitor->visit(arg);
+    llvm::Function *func = visitor->module->getFunction("sin");
+    if (func == NULL) {
+        llvm::FunctionCallee callee = visitor->module->getOrInsertFunction(
+            "sin",
+            llvm::Type::getDoubleTy(*(visitor->context())),
+            llvm::Type::getDoubleTy(*(visitor->context())));
+        func = visitor->module->getFunction("sin");
+    }
+    return visitor->builder->CreateCall(func, argValue, "tmphoge");
+}
+
+void Sin::dump(int level) {
+}
+
+Pow::Pow(Expr _a, Expr _b) {
+    a = std::move(_a);
+    b = std::move(_b);
+}
+
+llvm::Value* Pow::accept(IRVisitor* visitor) {
+    llvm::Value* a_v = visitor->visit(a);
+    llvm::Value* b_v = visitor->visit(b);
+    llvm::Function *func = visitor->module->getFunction("pow");
+    if (func == NULL) {
+        llvm::FunctionCallee callee = visitor->module->getOrInsertFunction(
+            "pow",
+            llvm::Type::getDoubleTy(*(visitor->context())),
+            llvm::Type::getDoubleTy(*(visitor->context())),
+            llvm::Type::getDoubleTy(*(visitor->context())));
+        func = visitor->module->getFunction("pow");
+    }
+    std::vector<llvm::Value *> arguments_values = {a_v, b_v};
+    llvm::ArrayRef<llvm::Value*> array(arguments_values);
+    return visitor->builder->CreateCall(func, array, "tmphoge");
+}
+
+void Pow::dump(int level) {
+}
