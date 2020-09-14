@@ -24,12 +24,11 @@
 
 #include "Var.hpp"
 #include "Func.hpp"
-#include "ExprAST.hpp"
 
 int main() {
     Func f;
     Var a, b, c;
-    f(a, b, c) = F::sin(a * 0) + F::sin(b * F::pow(a, b));
+    f(a, b, c) = F::sin(a * 10.01) + F::sin(b * F::pow(a, b));
     f.realise();
     std::cout << f(10.0, 2.0, 3.0) << std::endl;
 
