@@ -1,3 +1,24 @@
+// MIT License
+//
+// Copyright (c) 2020 sonson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT W  ARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #include <memory>
 #include <map>
@@ -26,40 +47,6 @@
 #include "llvm/ADT/APFloat.h"
 
 // http://llvm.org/docs/LangRef.html#int-varargs
-
-// https://stackoverrun.com/ja/q/8897069
-
-// ; This struct is different for every platform. For most platforms,
-// ; it is merely an i8*.
-// %struct.va_list = type { i8* }
-
-// ; For Unix x86_64 platforms, va_list is the following struct:
-// ; %struct.va_list = type { i32, i32, i8*, i8* }
-
-// define i32 @test(i32 %X, ...) {
-//   ; Initialize variable argument processing
-//   %ap = alloca %struct.va_list
-//   %ap2 = bitcast %struct.va_list* %ap to i8*
-//   call void @llvm.va_start(i8* %ap2)
-
-//   ; Read a single integer argument
-//   %tmp = va_arg i8* %ap2, i32
-
-//   ; Demonstrate usage of llvm.va_copy and llvm.va_end
-//   %aq = alloca i8*
-//   %aq2 = bitcast i8** %aq to i8*
-//   call void @llvm.va_copy(i8* %aq2, i8* %ap2)
-//   call void @llvm.va_end(i8* %aq2)
-
-//   ; Stop processing of arguments.
-//   call void @llvm.va_end(i8* %ap2)
-//   ret i32 %tmp
-// }
-
-// declare void @llvm.va_start(i8*)
-// declare void @llvm.va_copy(i8*, i8*)
-// declare void @llvm.va_end(i8*)
-
 using namespace llvm;
 using namespace std;
 
@@ -70,12 +57,14 @@ int main() {
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
-    std::vector<Type*> members; 
-    members.push_back(IntegerType::get(TheContext, sizeof(short) * 8)); 
-    members.push_back(IntegerType::get(TheContext, sizeof(short) * 8)); 
+    std::vector<Type*> members;
+    members.push_back(llvm::Type::getInt32Ty(TheContext));
+    members.push_back(llvm::Type::getInt32Ty(TheContext));
+    members.push_back(llvm::Type::getInt8PtrTy(TheContext));
+    members.push_back(llvm::Type::getInt8PtrTy(TheContext));
 
-    StructType *const llvm_S = StructType::create(TheContext, "S"); 
-    llvm_S->setBody(members); 
+    StructType *const llvm_S = StructType::create(TheContext, "S");
+    llvm_S->setBody(members);
 
     // Create a new module
     std::unique_ptr<Module> module(new llvm::Module("originalModule", TheContext));
@@ -95,7 +84,6 @@ int main() {
 
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
-
     // Set names for all arguments.
     // I'd like to use "zip" function, here.....
     unsigned idx = 0;
@@ -104,13 +92,6 @@ int main() {
         arg.setName(argNames[idx++]);
     }
 
-
-    auto arg_ite = function->arg_begin();
-
-    llvm::Argument *a = arg_ite;
-
-    std::cout << a->getType()->isDoubleTy() << std::endl;
-
     // Create a new basic block to start insertion into.
     BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
     builder.SetInsertPoint(basicBlock);
@@ -118,20 +99,31 @@ int main() {
     FunctionType *ft = FunctionType::get(Type::getVoidTy(TheContext), Type::getInt8PtrTy(TheContext), false);
 
     module->getOrInsertFunction("llvm.va_start", ft);
-
+    module->getOrInsertFunction("llvm.va_end", ft);
     llvm::AllocaInst *Alloca = builder.CreateAlloca(llvm_S, 0, "a");
 
     auto p = builder.CreateBitCast(Alloca, llvm::Type::getInt8PtrTy(TheContext), "hoge");
 
-    Function *func = module->getFunction("llvm.va_start");
+    Function *func_va_start = module->getFunction("llvm.va_start");
+    Function *func_va_end = module->getFunction("llvm.va_end");
 
-    std::cout << func << std::endl;
+    std::cout << func_va_start << std::endl;
+    std::cout << func_va_end << std::endl;
 
-    builder.CreateCall(func, p);
+    builder.CreateCall(func_va_start, p);
+
+    auto *VAArg1 = new llvm::VAArgInst(p, llvm::Type::getDoubleTy(TheContext), "get_double", basicBlock);
+    llvm::Value *vvv1 = dyn_cast_or_null<Value>(VAArg1);
+    auto *VAArg2 = new llvm::VAArgInst(p, llvm::Type::getDoubleTy(TheContext), "get_double", basicBlock);
+    llvm::Value *vvv2 = dyn_cast_or_null<Value>(VAArg2);
+
+    llvm::Value * result2 = builder.CreateFAdd(vvv1, vvv2, "a");
+
+    builder.CreateCall(func_va_end, p);
 
     auto result = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.1));
 
-    builder.CreateRet(result);
+    builder.CreateRet(result2);
 
     if (verifyFunction(*function)) {
         cout << ": Error constructing function!\n" << endl;
@@ -163,7 +155,7 @@ int main() {
         return 1;
     }
 
-    std::cout << f(1, 20.0) << std::endl;
+    std::cout << f(1, 20.0, 30.1) << std::endl;
 
     return 0;
 }

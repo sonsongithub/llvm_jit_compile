@@ -5,5 +5,10 @@ graph
 pointer
 value_embed
 adaptive_callee
+add2
+add_simple
+hoge
+hoge2
+variableArguments
 *.dSYM
 
