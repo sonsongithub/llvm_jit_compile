@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 //
-// This code is to analyze the behavior of LLVM when variable arguments are handled. 
+// This code is to analyze the behavior of LLVM when variable arguments are handled.
 //
 
 #include <stdarg.h>
@@ -31,8 +31,8 @@ void inspect_va_list(va_list * p) {
     char *pointer = (char*)p;
     printf("00000x%04x\n", *(pointer + 0));       // 0
     printf("00000x%04x\n", *(pointer + 1));       // 8
-    printf("%010p\n", *(int*)(pointer + 4));   // 16
-    printf("%010p\n", *(int*)(pointer + 6));   // 24
+    printf("%010p\n", *(int*)(pointer + 4));      // 16
+    printf("%010p\n", *(int*)(pointer + 6));      // 24
 }
 
 int sum_i(int amount, ...) {
@@ -94,7 +94,7 @@ int sum_i(int amount, ...) {
                 char **p_19 = (char**)((char*)(p_14) + 4 + 4 + 8);
                 char *p_20 = *p_19;
 
-                // This pointer is shifted by 2 (offsets) from p_12.
+                // This pointer is shifted by p_16(offsets) from p_12.
                 char *p_21 = p_20 + p_16;
                 int *p_22 = (int*)p_21;
 
@@ -108,13 +108,13 @@ int sum_i(int amount, ...) {
 
             } else {
                 // label: 24
-                // e3 のポインタ（中身はポインタ）を取得
+                // get the pointer to e3 of the va_list.
                 char **p_25 = (char**)((char*)(p_14) + 4 + 4);
 
                 char *p_26 = *p_25;
                 int *p_27 = (int*)p_26;
 
-                // そのポインタから，８バイト，ポインタをずらす
+                // This pointer is shifted by 8(bytes) from p_12.
                 char *p_28 = p_26 + 8;
 
                 *p_25 = p_28;
@@ -129,7 +129,7 @@ int sum_i(int amount, ...) {
             p_4 = p_31;
             int p_32 = p_4;
             int p_33 = p_5;
-            
+
             std::cout << p_32 << std::endl;
 
             int p_34 = p_32 + p_33;
@@ -159,11 +159,7 @@ int sum_i(int amount, ...) {
 }
 
 int main() {
-
-    // std::cout << sum_i(1, 13) << std::endl;
     std::cout << sum_i(12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) << std::endl;
-
     std::cout << sizeof(va_list) << std::endl;
-
     return 0;
 }
