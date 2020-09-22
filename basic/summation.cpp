@@ -51,7 +51,64 @@
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ADT/APFloat.h"
 
+//
 // http://llvm.org/docs/LangRef.html#int-varargs
+//
+// declare void @printd(double)
+//
+// ; Function Attrs: nounwind
+// ; ModuleID = 'originalModule'
+// source_filename = "originalModule"
+//
+// %struct.va_list = type { i32, i32, i8*, i8* }
+//
+// define double @originalFunction(i64, ...) {
+// entry:
+//   %va_list = alloca %struct.va_list
+//   %count = alloca i64
+//   %i = alloca i64
+//   %summation = alloca double
+//   store i64 %0, i64* %count
+//   %p_va_list = bitcast %struct.va_list* %va_list to i8*
+//   store i64 %0, i64* %count
+//   call void @llvm.va_start(i8* %p_va_list)
+//   store double 0.000000e+00, double* %summation
+//   store i64 0, i64* %i
+//   br label %beforeLoop
+//
+// beforeLoop:                                       ; preds = %loop, %entry
+//   %1 = load i64, i64* %i
+//   %2 = load i64, i64* %count
+//   %ifcond = icmp slt i64 %1, %2
+//   br i1 %ifcond, label %loop, label %afterLoop
+//
+// loop:                                             ; preds = %beforeLoop
+//   %3 = load i64, i64* %i
+//   %added = add i64 %3, 1
+//   store i64 %added, i64* %i
+//   %4 = load double, double* %summation
+//   %get_double = va_arg i8* %p_va_list, double
+//   call void @printd(double %get_double)
+//   %a = fadd double %4, %get_double
+//   store double %a, double* %summation
+//   br label %beforeLoop
+//
+// afterLoop:                                        ; preds = %beforeLoop
+//   call void @llvm.va_end(i8* %p_va_list)
+//   %5 = load double, double* %summation
+//   ret double %5
+// }
+//
+// declare void @printd(double)
+//
+// ; Function Attrs: nounwind
+// declare void @llvm.va_start(i8*) #0
+//
+// ; Function Attrs: nounwind
+// declare void @llvm.va_end(i8*) #0
+//
+// attributes #0 = { nounwind }
+//
 
 using namespace llvm;
 using namespace std;
