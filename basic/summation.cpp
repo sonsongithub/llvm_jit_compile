@@ -20,7 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <memory>
+//
+// This code is an example of constructing a function with variable arguments in LLVM IR.
+// This code builds a function which calculates the sum of the second and subsequent arguments,
+// and the first one means a number of arguments.
+//
+
 #include <map>
 #include <memory>
 #include <string>
@@ -48,44 +53,15 @@
 
 // http://llvm.org/docs/LangRef.html#int-varargs
 
-// base code
-
-// ; This struct is different for every platform. For most platforms,
-// ; it is merely an i8*.
-// %struct.va_list = type { i8* }
-
-// ; For Unix x86_64 platforms, va_list is the following struct:
-// ; %struct.va_list = type { i32, i32, i8*, i8* }
-
-// define i32 @test(i32 %X, ...) {
-//   ; Initialize variable argument processing
-//   %ap = alloca %struct.va_list
-//   %ap2 = bitcast %struct.va_list* %ap to i8*
-//   call void @llvm.va_start(i8* %ap2)
-
-//   ; Read a single integer argument
-//   %tmp = va_arg i8* %ap2, i32
-
-//   ; Demonstrate usage of llvm.va_copy and llvm.va_end
-//   %aq = alloca i8*
-//   %aq2 = bitcast i8** %aq to i8*
-//   call void @llvm.va_copy(i8* %aq2, i8* %ap2)
-//   call void @llvm.va_end(i8* %aq2)
-
-//   ; Stop processing of arguments.
-//   call void @llvm.va_end(i8* %ap2)
-//   ret i32 %tmp
-// }
-
-// declare void @llvm.va_start(i8*)
-// declare void @llvm.va_copy(i8*, i8*)
-// declare void @llvm.va_end(i8*)
-
 using namespace llvm;
 using namespace std;
 
 // Context for LLVM
 static LLVMContext TheContext;
+
+extern "C" void printd(double a) {
+    printf("%f\n", a);
+}
 
 int main() {
     InitializeNativeTarget();
@@ -109,7 +85,6 @@ int main() {
     static IRBuilder<> builder(TheContext);
 
     // define function
-    std::vector<std::string> argNames{"a", "b"};
     auto functionName = "originalFunction";
 
     std::vector<Type *> args(1, Type::getInt64Ty(TheContext));
@@ -118,13 +93,7 @@ int main() {
 
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
-    // Set names for all arguments.
-    // I'd like to use "zip" function, here.....
-    unsigned idx = 0;
-    for (auto &arg : function->args()) {
-        std::cout << idx << std::endl;
-        arg.setName(argNames[idx++]);
-    }
+    module->getOrInsertFunction("printd", Type::getVoidTy(TheContext), Type::getDoubleTy(TheContext));
 
     FunctionType *ft = FunctionType::get(Type::getVoidTy(TheContext), Type::getInt8PtrTy(TheContext), false);
     module->getOrInsertFunction("llvm.va_start", ft);
@@ -134,8 +103,14 @@ int main() {
     BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
     builder.SetInsertPoint(basicBlock);
 
+    BasicBlock *beforeLoopBlock = BasicBlock::Create(TheContext, "beforeLoop", function);
+    BasicBlock *loopBlock = BasicBlock::Create(TheContext, "loop", function);
+    BasicBlock *afterLoopBlock = BasicBlock::Create(TheContext, "afterLoop", function);
+
+    // entry block
     llvm::AllocaInst *v_va_list = builder.CreateAlloca(struct_va_list, 0, "va_list");
     llvm::AllocaInst *count = builder.CreateAlloca(llvm::Type::getInt64Ty(TheContext), 0, "count");
+    llvm::AllocaInst *i = builder.CreateAlloca(llvm::Type::getInt64Ty(TheContext), 0, "i");
     llvm::AllocaInst *summation = builder.CreateAlloca(llvm::Type::getDoubleTy(TheContext), 0, "summation");
 
     llvm::Value* arg = (function->arg_begin());
@@ -145,23 +120,52 @@ int main() {
 
     Function *func_va_start = module->getFunction("llvm.va_start");
 
+    builder.CreateStore(arg, count);
+
     builder.CreateCall(func_va_start, pointer_va_list);
 
-    Function *func_va_end = module->getFunction("llvm.va_end");
+    auto zero_d = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.0));
+    builder.CreateStore(zero_d, summation);
 
-    auto *VAArg1 = new llvm::VAArgInst(pointer_va_list, llvm::Type::getDoubleTy(TheContext), "get_double", basicBlock);
-    llvm::Value *vvv1 = dyn_cast_or_null<Value>(VAArg1);
+    llvm::Value *constant = llvm::ConstantInt::get(builder.getInt64Ty(), 0x0);
+    builder.CreateStore(constant, i);
 
-    auto *VAArg2 = new llvm::VAArgInst(pointer_va_list, llvm::Type::getDoubleTy(TheContext), "get_double", basicBlock);
-    llvm::Value *vvv2 = dyn_cast_or_null<Value>(VAArg2);
+    builder.CreateBr(beforeLoopBlock);
 
-    llvm::Value * result2 = builder.CreateFAdd(vvv1, vvv2, "a");
+    {
+        builder.SetInsertPoint(beforeLoopBlock);
+        llvm::Value* c1 = builder.CreateLoad(i);
+        llvm::Value* c2 = builder.CreateLoad(count);
+        llvm::Value* for_check_flag = builder.CreateICmpSLT(c1, c2, "ifcond");
+        builder.CreateCondBr(for_check_flag, loopBlock, afterLoopBlock);
+    }
 
-    builder.CreateCall(func_va_end, pointer_va_list);
+    {
+        builder.SetInsertPoint(loopBlock);
+        llvm::Value* c1 = builder.CreateLoad(i);
+        llvm::Value* c2 = builder.CreateAdd(c1, llvm::ConstantInt::get(builder.getInt64Ty(), 0x1), "added");
+        builder.CreateStore(c2, i);
 
-    auto result = llvm::ConstantFP::get(TheContext, llvm::APFloat(0.1));
+        llvm::Value* d1 = builder.CreateLoad(summation);
+        auto *VAArg1 = new llvm::VAArgInst(pointer_va_list, llvm::Type::getDoubleTy(TheContext), "get_double", loopBlock);
+        llvm::Value *v1 = dyn_cast_or_null<Value>(VAArg1);
 
-    builder.CreateRet(result2);
+        Function *printd = module->getFunction("printd");
+        builder.CreateCall(printd, v1);
+
+        llvm::Value * result = builder.CreateFAdd(d1, v1, "a");
+
+        builder.CreateStore(result, summation);
+        builder.CreateBr(beforeLoopBlock);
+    }
+
+    {
+        builder.SetInsertPoint(afterLoopBlock);
+        Function *func_va_end = module->getFunction("llvm.va_end");
+        builder.CreateCall(func_va_end, pointer_va_list);
+        llvm::Value* d1 = builder.CreateLoad(summation);
+        builder.CreateRet(d1);
+    }
 
     if (verifyFunction(*function)) {
         cout << ": Error constructing function!\n" << endl;
@@ -193,7 +197,7 @@ int main() {
         return 1;
     }
 
-    std::cout << f(1, 20.0, 30.1) << std::endl;
+    std::cout << f(5, 20.0, 30.1, 10.0, 12.0, 10.1) << std::endl;
 
     return 0;
 }
