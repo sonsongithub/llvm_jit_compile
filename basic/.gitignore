@@ -10,5 +10,9 @@ add_simple
 hoge
 hoge2
 variableArguments
+controlflow
+jit_orc
+jit_mc
 *.dSYM
+summation
 

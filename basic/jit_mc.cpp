@@ -52,16 +52,10 @@ static LLVMContext TheContext;
 // ; ModuleID = 'originalModule'
 // source_filename = "originalModule"
 //
-// define double @originalFunction(double %0) {
+// define double @originalFunction(double %a, double %b) {
 // entry:
-//   %ifcond = fcmp ult double %0, 0.000000e+00
-//   br i1 %ifcond, label %then, label %else
-//
-// then:                                             ; preds = %entry
-//   ret double -1.000000e+00
-//
-// else:                                             ; preds = %entry
-//   ret double 1.000000e+00
+//   %addtmp = fadd double %a, %b
+//   ret double %addtmp
 // }
 
 int main() {
@@ -77,41 +71,36 @@ int main() {
     // define function
     // argument name list
     auto functionName = "originalFunction";
+    std::vector<std::string> argNames{"a", "b"};
     // argument type list
-    std::vector<Type *> Doubles(1, Type::getDoubleTy(TheContext));
+    std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
     // create function type
     FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
     // create function in the module.
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
     // Set names for all arguments.
-    llvm::Value* arg = (function->arg_begin());
+    // I'd like to use "zip" function, here.....
+    unsigned idx = 0;
+    for (auto &arg : function->args()) {
+        arg.setName(argNames[idx++]);
+    }
+
+    // Create argument table for LLVM::Value type.
+    static std::map<std::string, Value*> name2VariableMap;
+    for (auto &arg : function->args()) {
+        name2VariableMap[arg.getName()] = &arg;
+    }
 
     // Create a new basic block to start insertion into.
     BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
     builder.SetInsertPoint(basicBlock);
 
-    llvm::Value* flag = builder.CreateFCmpULT(arg, ConstantFP::get(TheContext, APFloat(0.0)), "ifcond");
+    // calculate "add"
+    auto result = builder.CreateFAdd(name2VariableMap["a"], name2VariableMap["b"], "addtmp");
 
-    BasicBlock *thenBB = BasicBlock::Create(TheContext, "then", function);
-    BasicBlock *elseBB = BasicBlock::Create(TheContext, "else", function);
-
-    // if -------------------------------
-    builder.CreateCondBr(flag, thenBB, elseBB);
-
-    // then -----------------------------
-    builder.SetInsertPoint(thenBB);
-    thenBB = builder.GetInsertBlock();
-
-    auto result_minus = llvm::ConstantFP::get(TheContext, llvm::APFloat(-1.0));
-    builder.CreateRet(result_minus);
-
-    // else -----------------------------
-    builder.SetInsertPoint(elseBB);
-    elseBB = builder.GetInsertBlock();
-
-    auto result_one = llvm::ConstantFP::get(TheContext, llvm::APFloat(1.0));
-    builder.CreateRet(result_one);
+    // set return
+    builder.CreateRet(result);
 
     // varify LLVM IR
     if (verifyFunction(*function)) {
@@ -140,7 +129,7 @@ int main() {
     }
 
     // Get pointer to a function which is built by EngineBuilder.
-    auto f = reinterpret_cast<double(*)(double)>(
+    auto f = reinterpret_cast<double(*)(double, double)>(
             engineBuilder->getFunctionAddress(function->getName().str()));
     if (f == NULL) {
         cout << "error" << endl;
@@ -149,8 +138,8 @@ int main() {
 
     // Execution
     // a + b
-    cout << f(-1.0) << endl;
-    cout << f(1.0) << endl;
+    cout << f(1.0, 2.0) << endl;
+    cout << f(2.0, 2.0) << endl;
 
     return 0;
 }

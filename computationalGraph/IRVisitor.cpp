@@ -55,7 +55,7 @@ IRVisitor::IRVisitor() {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     builder = new llvm::IRBuilder<>(TheContext);
-    module = llvm::make_unique<llvm::Module>("abc", TheContext);
+    module = std::make_unique<llvm::Module>("abc", TheContext);
 }
 
 llvm::LLVMContext* IRVisitor::context() {
