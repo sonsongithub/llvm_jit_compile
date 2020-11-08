@@ -93,16 +93,12 @@ int main(int argc, char *argv[]) {
     // set return
     builder.CreateRet(result);
 
-    // varify LLVM IR
-    if (verifyFunction(*function)) {
-        cout << ": Error constructing function!\n" << endl;
-        return 1;
-    }
-
-    // confirm LLVM IR
-    module->print(llvm::outs(), nullptr);
+    llvm::ExitOnError("Error constructing function!", verifyFunction(*function));
 
     llvm::ExitOnError("Error module!", verifyModule(*module));
+
+    // confirm LLVM IR, text mode.
+    module->print(llvm::outs(), nullptr);
 
     auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
 
@@ -113,6 +109,7 @@ int main(int argc, char *argv[]) {
 
     auto symbol = jit->get()->lookup("originalFunction");
     auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
+    
     printf("%f\n", f(2, 3));
 
     return 0;

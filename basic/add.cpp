@@ -26,28 +26,16 @@
 #include <vector>
 #include <iostream>
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
+#include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ADT/APFloat.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 
 using namespace llvm;
 using namespace std;
-
-// Context for LLVM
-static LLVMContext TheContext;
 
 // ; ModuleID = 'originalModule'
 // source_filename = "originalModule"
@@ -58,24 +46,31 @@ static LLVMContext TheContext;
 //   ret double %addtmp
 // }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Init LLVM
+    llvm::InitLLVM X(argc, argv);
+
+    // create context
+    auto context = std::make_unique<LLVMContext>();
+
+    // Initiali each settings according to the native env.
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
     // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", TheContext));
+    std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
 
     // LLVM IR builder
-    static IRBuilder<> builder(TheContext);
+    static IRBuilder<> builder(*context);
 
     // define function
     // argument name list
     auto functionName = "originalFunction";
     std::vector<std::string> argNames{"a", "b"};
     // argument type list
-    std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
+    std::vector<Type *> Doubles(2, Type::getDoubleTy(*context));
     // create function type
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(*context), Doubles, false);
     // create function in the module.
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
@@ -93,7 +88,7 @@ int main() {
     }
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
+    BasicBlock *basicBlock = BasicBlock::Create(*context, "entry", function);
     builder.SetInsertPoint(basicBlock);
 
     // calculate "add"
@@ -102,44 +97,30 @@ int main() {
     // set return
     builder.CreateRet(result);
 
-    // varify LLVM IR
-    if (verifyFunction(*function)) {
-        cout << ": Error constructing function!\n" << endl;
-        return 1;
-    }
+    llvm::ExitOnError("Error constructing function!", verifyFunction(*function));
 
-    // confirm LLVM IR
+    // confirm LLVM IR, text mode.
     module->print(llvm::outs(), nullptr);
 
-    // confirm the current module status
-    if (verifyModule(*module)) {
-        cout << ": Error module!\n" << endl;
+    llvm::ExitOnError("Error module!", verifyModule(*module));
+
+    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+
+    // Try to detect the host arch and construct an LLJIT instance.
+    auto jit = llvm::orc::LLJITBuilder().create();
+
+    if (auto error = jit->get()->addIRModule(std::move(thread_safe_module))) {
+        // error
         return 1;
     }
 
-    // Builder JIT
-    std::string errStr;
-    ExecutionEngine *engineBuilder = EngineBuilder(std::move(module))
-        .setEngineKind(EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
-        return 1;
-    }
-
-    // Get pointer to a function which is built by EngineBuilder.
-    auto f = reinterpret_cast<double(*)(double, double)>(
-            engineBuilder->getFunctionAddress(function->getName().str()));
-    if (f == NULL) {
-        cout << "error" << endl;
-        return 1;
-    }
+    auto symbol = jit->get()->lookup("originalFunction");
+    auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
 
     // Execution
     // a + b
     cout << f(1.0, 2.0) << endl;
-    cout << f(2.0, 2.0) << endl;
+    cout << f(4.0, 3.0) << endl;
 
     return 0;
 }

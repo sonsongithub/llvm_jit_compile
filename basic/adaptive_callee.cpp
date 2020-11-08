@@ -26,7 +26,9 @@
 #include <vector>
 #include <iostream>
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
+
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -36,12 +38,15 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
+
+// #include "llvm/ExecutionEngine/Orc/LLJIT.h"
+
 #include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ADT/APFloat.h"
 
 using namespace llvm;
 using namespace std;
@@ -94,6 +99,9 @@ void AdaptiveCallee::prepare() {
     try {
         Function *callee = createCallee(module.get(), count);
         caller = createCaller(callee, argumentsBuffer, module.get());
+
+        // confirm LLVM IR
+        module->print(llvm::outs(), nullptr);
 
         // Builder JIT
         std::string errStr;
@@ -159,9 +167,6 @@ Function *AdaptiveCallee::createCallee(Module* module, int count) {
         throw 1;
     }
 
-    // confirm LLVM IR
-    module->print(llvm::outs(), nullptr);
-
     // confirm the current module status
     if (verifyModule(*module, &llvm::errs())) {
         throw 1;
@@ -208,9 +213,6 @@ Function *AdaptiveCallee::createCaller(Function *callee, const std::vector<doubl
     if (verifyFunction(*caller, &llvm::errs())) {
         throw 1;
     }
-
-    // confirm LLVM IR
-    module->print(llvm::outs(), nullptr);
 
     // confirm the current module status
     if (verifyModule(*module, &llvm::errs())) {
