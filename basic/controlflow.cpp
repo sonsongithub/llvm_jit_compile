@@ -26,22 +26,11 @@
 #include <vector>
 #include <iostream>
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ADT/APFloat.h"
+#include "llvm/Support/InitLLVM.h"
 
 using namespace llvm;
 using namespace std;
@@ -64,23 +53,29 @@ static LLVMContext TheContext;
 //   ret double 1.000000e+00
 // }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Init LLVM
+    llvm::InitLLVM X(argc, argv);
+
+    // create context
+    auto context = std::make_unique<LLVMContext>();
+
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
     // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", TheContext));
+    std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
 
     // LLVM IR builder
-    static IRBuilder<> builder(TheContext);
+    static IRBuilder<> builder(*context);
 
     // define function
     // argument name list
     auto functionName = "originalFunction";
     // argument type list
-    std::vector<Type *> Doubles(1, Type::getDoubleTy(TheContext));
+    std::vector<Type *> Doubles(1, Type::getDoubleTy(*context));
     // create function type
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(*context), Doubles, false);
     // create function in the module.
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
@@ -88,13 +83,13 @@ int main() {
     llvm::Value* arg = (function->arg_begin());
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
+    BasicBlock *basicBlock = BasicBlock::Create(*context, "entry", function);
     builder.SetInsertPoint(basicBlock);
 
-    llvm::Value* flag = builder.CreateFCmpULT(arg, ConstantFP::get(TheContext, APFloat(0.0)), "ifcond");
+    llvm::Value* flag = builder.CreateFCmpULT(arg, ConstantFP::get(*context, APFloat(0.0)), "ifcond");
 
-    BasicBlock *thenBB = BasicBlock::Create(TheContext, "then", function);
-    BasicBlock *elseBB = BasicBlock::Create(TheContext, "else", function);
+    BasicBlock *thenBB = BasicBlock::Create(*context, "then", function);
+    BasicBlock *elseBB = BasicBlock::Create(*context, "else", function);
 
     // if -------------------------------
     builder.CreateCondBr(flag, thenBB, elseBB);
@@ -103,14 +98,14 @@ int main() {
     builder.SetInsertPoint(thenBB);
     thenBB = builder.GetInsertBlock();
 
-    auto result_minus = llvm::ConstantFP::get(TheContext, llvm::APFloat(-1.0));
+    auto result_minus = llvm::ConstantFP::get(*context, llvm::APFloat(-1.0));
     builder.CreateRet(result_minus);
 
     // else -----------------------------
     builder.SetInsertPoint(elseBB);
     elseBB = builder.GetInsertBlock();
 
-    auto result_one = llvm::ConstantFP::get(TheContext, llvm::APFloat(1.0));
+    auto result_one = llvm::ConstantFP::get(*context, llvm::APFloat(1.0));
     builder.CreateRet(result_one);
 
     // varify LLVM IR
@@ -128,20 +123,18 @@ int main() {
         return 1;
     }
 
-    // Builder JIT
-    std::string errStr;
-    ExecutionEngine *engineBuilder = EngineBuilder(std::move(module))
-        .setEngineKind(EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
+    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+
+    // Try to detect the host arch and construct an LLJIT instance.
+    auto jit = llvm::orc::LLJITBuilder().create();
+
+    if (auto error = jit->get()->addIRModule(std::move(thread_safe_module))) {
+        // error
         return 1;
     }
 
-    // Get pointer to a function which is built by EngineBuilder.
-    auto f = reinterpret_cast<double(*)(double)>(
-            engineBuilder->getFunctionAddress(function->getName().str()));
+    auto symbol = jit->get()->lookup("originalFunction");
+    auto f = reinterpret_cast<double(*)(double)>(symbol->getAddress());
     if (f == NULL) {
         cout << "error" << endl;
         return 1;

@@ -26,13 +26,11 @@
 #include <vector>
 #include <iostream>
 
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/InitLLVM.h"
 
 using namespace llvm;
 using namespace std;
@@ -50,13 +48,13 @@ int main(int argc, char *argv[]) {
     // Init LLVM
     llvm::InitLLVM X(argc, argv);
 
-    // create context
-    auto context = std::make_unique<LLVMContext>();
-
     // Initiali each settings according to the native env.
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
+    // create context
+    auto context = std::make_unique<LLVMContext>();
+    
     // Create a new module
     std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
 
