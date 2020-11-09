@@ -46,24 +46,27 @@
 //   ret double %tempmul1
 // }
 
-using namespace llvm;
-using namespace std;
-
 int main(int argc, char *argv[]) {
+    // using declaration for llvm
+    using llvm::Type;
+    using llvm::Function;
+    using llvm::BasicBlock;
+    using llvm::FunctionType;
+
     // Init LLVM
     llvm::InitLLVM X(argc, argv);
 
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
 
     // create context
-    auto context = std::make_unique<LLVMContext>();
+    auto context = std::make_unique<llvm::LLVMContext>();
 
     // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
+    std::unique_ptr<llvm::Module> module(new llvm::Module("originalModule", *context));
 
     // LLVM IR builder
-    static IRBuilder<> builder(*context);
+    static llvm::IRBuilder<> builder(*context);
 
     // define function
     std::vector<std::string> argNames{"p_a"};
@@ -85,7 +88,7 @@ int main(int argc, char *argv[]) {
     builder.SetInsertPoint(basicBlock);
 
     // Create table
-    static std::map<std::string, Value*> name2VariableMap;
+    static std::map<std::string, llvm::Value*> name2VariableMap;
     for (auto &arg : function->args()) {
         name2VariableMap[arg.getName()] = &arg;
     }
@@ -104,7 +107,7 @@ int main(int argc, char *argv[]) {
     builder.CreateRet(result);
 
     if (verifyFunction(*function)) {
-        cout << ": Error constructing function!\n" << endl;
+        std::cout << ": Error constructing function!\n" << std::endl;
         return 1;
     }
 
@@ -128,7 +131,7 @@ int main(int argc, char *argv[]) {
     // Execution
     double a = 10;
 
-    cout << f(&a) << endl;
+    std::cout << f(&a) << std::endl;
 
     return 0;
 }
