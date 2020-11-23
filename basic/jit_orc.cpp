@@ -20,44 +20,88 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <map>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <typeinfo>
 
-#include "llvm/ExecutionEngine/Orc/LLJIT.h"
-#include "llvm/IR/Function.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Orc/CompileUtils.h"
+#include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/SectionMemoryManager.h"
+
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/TargetSelect.h"
 #include "llvm/IR/Verifier.h"
 
-using namespace llvm;
-using namespace std;
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/InitLLVM.h"
+
+// static llvm::ExitOnError ExitOnErr;
+
+extern "C" double hoge(double a) {
+    return a * 2;
+}
 
 // https://llvm.org/docs/ORCv2.html
 // https://stackoverflow.com/questions/62271258/llvm-orc-v2-symbol-to-global-variable
 
 int main(int argc, char *argv[]) {
+    // using declaration for llvm
+    using llvm::Type;
+    using llvm::Function;
+    using llvm::BasicBlock;
+    using llvm::FunctionType;
+    using llvm::Value;
 
-    auto context = std::make_unique<LLVMContext>();
+    using llvm::orc::IRCompileLayer;
+    using llvm::orc::ExecutionSession;
+    using llvm::orc::RTDyldObjectLinkingLayer;
+    using llvm::orc::ConcurrentIRCompiler;
 
-    // Initialize LLVM.
+    ExecutionSession executionSession;
+
     llvm::InitLLVM X(argc, argv);
-
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
 
-    // Try to detect the host arch and construct an LLJIT instance.
-    auto jit = llvm::orc::LLJITBuilder().create();
+    auto jitTargetMachineBuilder = llvm::orc::JITTargetMachineBuilder::detectHost();
+    assert(jitTargetMachineBuilder && "Error: JITTargetMachineBuilder");
 
-    // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
+    auto dataLayout = jitTargetMachineBuilder->getDefaultDataLayoutForTarget();
+    assert(dataLayout && "Error: getfaultDataLayoutForTarget");
 
-    // LLVM IR builder
-    static IRBuilder<> builder(*context);
+    RTDyldObjectLinkingLayer::GetMemoryManagerFunction f = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
+    RTDyldObjectLinkingLayer objectLinkingLayer(executionSession, f);
+
+    IRCompileLayer compileLayer(executionSession, objectLinkingLayer, std::make_unique<ConcurrentIRCompiler>(std::move(*jitTargetMachineBuilder)));
+
+    llvm::orc::ThreadSafeContext orc_context(std::make_unique<llvm::LLVMContext>());
+
+    llvm::orc::JITDylib &mainJITDylib = executionSession.createJITDylib("<main>");
+
+    mainJITDylib.addGenerator(
+        llvm::cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(dataLayout->getGlobalPrefix())));
+
+    llvm::orc::MangleAndInterner mangle(executionSession, *dataLayout);
+    llvm::LLVMContext *context = orc_context.getContext();
+
+    // Open a new module.
+    std::unique_ptr<llvm::Module> module = std::make_unique<llvm::Module>("my cool jit", *context);
+
+    module->setDataLayout(*dataLayout);
+
+    // Create a new builder for the module.
+    std::unique_ptr<llvm::IRBuilder<>> builder = std::make_unique<llvm::IRBuilder<>>(*context);
 
     // define function
     // argument name list
@@ -85,32 +129,29 @@ int main(int argc, char *argv[]) {
 
     // Create a new basic block to start insertion into.
     BasicBlock *basicBlock = BasicBlock::Create(*context, "entry", function);
-    builder.SetInsertPoint(basicBlock);
+    builder->SetInsertPoint(basicBlock);
 
     // calculate "add"
-    auto result = builder.CreateFAdd(name2VariableMap["a"], name2VariableMap["b"], "addtmp");
+    auto result = builder->CreateFAdd(name2VariableMap["a"], name2VariableMap["b"], "addtmp");
 
     // set return
-    builder.CreateRet(result);
+    builder->CreateRet(result);
 
     llvm::ExitOnError("Error constructing function!", verifyFunction(*function));
-
-    llvm::ExitOnError("Error module!", verifyModule(*module));
 
     // confirm LLVM IR, text mode.
     module->print(llvm::outs(), nullptr);
 
-    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+    auto error = compileLayer.add(mainJITDylib, llvm::orc::ThreadSafeModule(std::move(module), orc_context));
+    assert(!error && "Error: add module to IRCompileLayer.");
 
-    if (auto error = jit->get()->addIRModule(std::move(thread_safe_module))) {
-        // error
-        return 1;
+    auto symbol = executionSession.lookup({&mainJITDylib}, mangle("originalFunction"));
+
+    if (symbol) {
+        auto *FP = (double (*)(double, double))(intptr_t)symbol->getAddress();
+        assert(FP && "Failed to codegen function");
+        std::cout << "Evaluated to " << FP(10, 11) << std::endl;
     }
-
-    auto symbol = jit->get()->lookup("originalFunction");
-    auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
-    
-    printf("%f\n", f(2, 3));
 
     return 0;
 }
