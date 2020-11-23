@@ -45,15 +45,6 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/InitLLVM.h"
 
-// static llvm::ExitOnError ExitOnErr;
-
-extern "C" double hoge(double a) {
-    return a * 2;
-}
-
-// https://llvm.org/docs/ORCv2.html
-// https://stackoverflow.com/questions/62271258/llvm-orc-v2-symbol-to-global-variable
-
 int main(int argc, char *argv[]) {
     // using declaration for llvm
     using llvm::Type;
