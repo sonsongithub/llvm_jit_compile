@@ -20,76 +20,72 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <map>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 #include <iostream>
-
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/STLExtras.h"
+#include <typeinfo>
 
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
-
 #include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-
-// #include "llvm/ExecutionEngine/Orc/LLJIT.h"
-
-#include "llvm/ExecutionEngine/MCJIT.h"
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-
-using namespace llvm;
-using namespace std;
-
-// Context for LLVM
-static LLVMContext TheContext;
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/Support/InitLLVM.h"
 
 class AdaptiveCallee {
  public:
+    std::unique_ptr<llvm::LLVMContext> context;
     const int count;
-    ExecutionEngine *engineBuilder;
     std::vector<double> argumentsBuffer;
-    Function *caller;
+    llvm::Function *caller;
+
+    llvm::orc::ThreadSafeModule threadSafeModule;
 
     explicit AdaptiveCallee(int c) : count(c) {
+        context = std::make_unique<llvm::LLVMContext>();
         prepare();
     }
 
     template <typename... Args>
     double operator() (Args&&... args) {
         std::vector<double> collected_args{std::forward<Args>(args)...};
-        for (auto it = collected_args.begin(); it != collected_args.end(); it++) {
-            std::cout << *it << std::endl;
+        assert(count == collected_args.size() && "The size of arguments buffer do not match one of arguments .");
+        for (int i = 0; i < count; i++) {
+            argumentsBuffer[i] = collected_args[i];
         }
         return execute();
     }
+
  private:
     double execute();
     void prepare();
-    Function *createCallee(Module* module, int count);
-    Function *createCaller(Function *callee, const std::vector<double> &arguments, Module* module);
+    llvm::Function *createCallee(llvm::Module* module, int count);
+    llvm::Function *createCaller(llvm::Function *callee, const std::vector<double> &arguments, llvm::Module* module);
 };
 
 double AdaptiveCallee::execute() {
-    auto f = reinterpret_cast<double(*)()>(engineBuilder->getFunctionAddress(caller->getName().str()));
-    if (f == NULL) {
-        throw 1;
+    auto jit = llvm::orc::LLJITBuilder().create();
+    auto error = jit->get()->addIRModule(std::move(threadSafeModule));
+    assert(!error && "LLJIT can not add handle module.");
+    auto symbol = jit->get()->lookup(caller->getName().str());
+    if (symbol) {
+        auto f = reinterpret_cast<double(*)()>(symbol->getAddress());
+        if (f)
+            return f();
+        else
+            assert(0 && "Can not get the address of built target function.");
+    } else {
+            assert(0 && "Can not find the symbol of built target function.");
     }
-    return f();
 }
 
 void AdaptiveCallee::prepare() {
-    std::unique_ptr<Module> module(new llvm::Module("module", TheContext));
+    std::unique_ptr<llvm::Module> module(new llvm::Module("module", *context));
 
     argumentsBuffer.clear();
     for (int i = 0; i < count; i++) {
@@ -97,35 +93,33 @@ void AdaptiveCallee::prepare() {
     }
 
     try {
-        Function *callee = createCallee(module.get(), count);
+        llvm::Function *callee = createCallee(module.get(), count);
         caller = createCaller(callee, argumentsBuffer, module.get());
 
         // confirm LLVM IR
         module->print(llvm::outs(), nullptr);
 
-        // Builder JIT
-        std::string errStr;
-        engineBuilder = EngineBuilder(std::move(module))
-            .setEngineKind(EngineKind::JIT)
-            .setErrorStr(&errStr)
-            .create();
-        if (!engineBuilder) {
-            std::cout << "error: " << errStr << std::endl;
-            assert(0);
-        }
+        // All code are saved into thread safe module.
+        threadSafeModule = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
     } catch (...) {
         assert(0);
     }
 }
 
-Function *AdaptiveCallee::createCallee(Module* module, int count) {
+llvm::Function *AdaptiveCallee::createCallee(llvm::Module* module, int count) {
+    using llvm::Type;
+    using llvm::FunctionType;
+    using llvm::Function;
+    using llvm::Value;
+    using llvm::BasicBlock;
+
     // define function
     // argument name list
     auto functionName = "originalFunction";
     // argument type list
-    std::vector<Type *> Doubles(count, Type::getDoubleTy(TheContext));
+    std::vector<Type *> Doubles(count, Type::getDoubleTy(*context));
     // create function type
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    FunctionType *functionType = FunctionType::get(llvm::Type::getDoubleTy(*context), Doubles, false);
     // create function in the module.
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module);
 
@@ -144,14 +138,14 @@ Function *AdaptiveCallee::createCallee(Module* module, int count) {
     }
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
+    BasicBlock *basicBlock = BasicBlock::Create(*context, "entry", function);
 
     // LLVM IR builder
-    static IRBuilder<> builder(TheContext);
+    static llvm::IRBuilder<> builder(*context);
 
     builder.SetInsertPoint(basicBlock);
 
-    llvm::Value *result = name2VariableMap["var0"];
+    Value *result = name2VariableMap["var0"];
 
     idx = 1;
     for (int i = 1; i < function->arg_size(); i++) {
@@ -161,72 +155,67 @@ Function *AdaptiveCallee::createCallee(Module* module, int count) {
 
     builder.CreateRet(result);
 
-    // varify LLVM IR
-    if (verifyFunction(*function, &llvm::errs())) {
-        cout << ": Error constructing function!\n" << endl;
-        throw 1;
-    }
-
-    // confirm the current module status
-    if (verifyModule(*module, &llvm::errs())) {
-        throw 1;
-    }
+    llvm::ExitOnError("Error function!", verifyFunction(*function));
+    llvm::ExitOnError("Error module!", verifyModule(*module));
 
     return function;
 }
 
-Function *AdaptiveCallee::createCaller(Function *callee, const std::vector<double> &arguments, Module* module) {
+llvm::Function *AdaptiveCallee::createCaller(llvm::Function *callee, const std::vector<double> &arguments, llvm::Module* module) {
+    using llvm::Type;
+    using llvm::FunctionType;
+    using llvm::Function;
+    using llvm::Value;
+    using llvm::BasicBlock;
+
     // define function
     // argument name list
     auto functionName = "caller";
     // argument type list
-    std::vector<Type *> vacant = {Type::getDoubleTy(TheContext)};
+    std::vector<Type *> vacant = {};
     // create function type
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), vacant, false);
+    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(*context), vacant, false);
     // create function in the module.
     Function *caller = Function::Create(functionType, Function::ExternalLinkage, functionName, module);
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry2", caller);
+    BasicBlock *basicBlock = BasicBlock::Create(*context, "entry2", caller);
 
-    static IRBuilder<> builder(TheContext);
+    static llvm::IRBuilder<> builder(*context);
 
     builder.SetInsertPoint(basicBlock);
 
     // LLVM IR builder
-    std::vector<llvm::Value *> arguments_values = {};
+    std::vector<Value *> arguments_values = {};
 
     for (int i = 0; i < arguments.size(); i++) {
         u_int64_t p = (u_int64_t)&arguments[i];
-        llvm::Constant *constant = llvm::ConstantPointerNull::getIntegerValue(llvm::PointerType::getDoublePtrTy(TheContext), APInt(64, 1, &p));
+        llvm::Constant *constant = llvm::ConstantPointerNull::getIntegerValue(llvm::PointerType::getDoublePtrTy(*context), llvm::APInt(64, 1, &p));
         auto temp = builder.CreateLoad(constant, "buf");
         arguments_values.push_back(temp);
     }
 
-    llvm::ArrayRef<llvm::Value*> a(arguments_values);
+    llvm::ArrayRef<Value*> a(arguments_values);
 
     auto result = builder.CreateCall(callee, a, "a");
 
     builder.CreateRet(result);
 
-    // varify LLVM IR
-    if (verifyFunction(*caller, &llvm::errs())) {
-        throw 1;
-    }
-
-    // confirm the current module status
-    if (verifyModule(*module, &llvm::errs())) {
-        throw 1;
-    }
+    llvm::ExitOnError("Error function!", verifyFunction(*caller));
+    llvm::ExitOnError("Error module!", verifyModule(*module));
 
     return caller;
 }
 
-int main() {
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
+int main(int argc, char *argv[]) {
+    llvm::InitLLVM X(argc, argv);
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
 
-    AdaptiveCallee obj(5);
+    AdaptiveCallee obj(2);
+    AdaptiveCallee obj2(3);
 
+    std::cout << obj2(101.0, 10.0, 20.0) << std::endl;
     std::cout << obj(10.0, 20.0) << std::endl;
 }
