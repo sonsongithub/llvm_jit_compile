@@ -20,20 +20,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <map>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <typeinfo>
 
-#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/InitLLVM.h"
-
-using namespace llvm;
-using namespace std;
 
 // ; ModuleID = 'originalModule'
 // source_filename = "originalModule"
@@ -45,21 +47,29 @@ using namespace std;
 // }
 
 int main(int argc, char *argv[]) {
+    // using declaration for llvm
+    using llvm::Type;
+    using llvm::Function;
+    using llvm::BasicBlock;
+    using llvm::FunctionType;
+    using llvm::Value;
+    using llvm::LLVMContext;
+    using llvm::Module;
+
     // Init LLVM
     llvm::InitLLVM X(argc, argv);
-
-    // Initiali each settings according to the native env.
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
 
     // create context
     auto context = std::make_unique<LLVMContext>();
-    
+
     // Create a new module
     std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
 
     // LLVM IR builder
-    static IRBuilder<> builder(*context);
+    static llvm::IRBuilder<> builder(*context);
 
     // define function
     // argument name list
@@ -82,7 +92,7 @@ int main(int argc, char *argv[]) {
     // Create argument table for LLVM::Value type.
     static std::map<std::string, Value*> name2VariableMap;
     for (auto &arg : function->args()) {
-        name2VariableMap[arg.getName()] = &arg;
+        name2VariableMap[arg.getName().str()] = &arg;
     }
 
     // Create a new basic block to start insertion into.
@@ -102,23 +112,22 @@ int main(int argc, char *argv[]) {
 
     llvm::ExitOnError("Error module!", verifyModule(*module));
 
-    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
-
     // Try to detect the host arch and construct an LLJIT instance.
     auto jit = llvm::orc::LLJITBuilder().create();
 
-    if (auto error = jit->get()->addIRModule(std::move(thread_safe_module))) {
-        // error
-        return 1;
+    if (auto error = jit.takeError()) {
+        
     }
 
-    auto symbol = jit->get()->lookup("originalFunction");
-    auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
-
-    // Execution
-    // a + b
-    cout << f(1.0, 2.0) << endl;
-    cout << f(4.0, 3.0) << endl;
-
+    if (jit) {
+        auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+        auto error = jit->get()->addIRModule(std::move(thread_safe_module));
+        assert(!error && "LLJIT can not add handle module.");
+        auto symbol = jit->get()->lookup("originalFunction");
+        auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
+        std::cout << "Evaluated to " << f(10, 11) << std::endl;
+    } else {
+        std::cout << "Error - LLJIT can not be initialized." << std::endl;
+    }
     return 0;
 }

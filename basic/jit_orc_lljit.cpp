@@ -100,12 +100,11 @@ int main(int argc, char *argv[]) {
 
     llvm::ExitOnError("Error module!", verifyModule(*module));
 
-    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
-
     // Try to detect the host arch and construct an LLJIT instance.
     auto jit = llvm::orc::LLJITBuilder().create();
 
     if (jit) {
+        auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
         auto error = jit->get()->addIRModule(std::move(thread_safe_module));
         assert(!error && "LLJIT can not add handle module.");
         llvm::orc::JITDylib &dylib = jit->get()->getMainJITDylib();
@@ -116,7 +115,7 @@ int main(int argc, char *argv[]) {
         auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
         std::cout << "Evaluated to " << f(10, 11) << std::endl;
     } else {
-        std::cout << "Error - JIT does not work." << std::endl;
+        std::cout << "Error - LLJIT can not be initialized." << std::endl;
     }
     return 0;
 }

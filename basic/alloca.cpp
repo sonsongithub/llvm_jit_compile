@@ -20,16 +20,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <map>
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <typeinfo>
 
-#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/InitLLVM.h"
 
 // ; ModuleID = 'originalModule'
@@ -52,13 +57,15 @@ int main(int argc, char *argv[]) {
     using llvm::Function;
     using llvm::BasicBlock;
     using llvm::FunctionType;
+    using llvm::Value;
+    using llvm::LLVMContext;
+    using llvm::Module;
 
     // Init LLVM
     llvm::InitLLVM X(argc, argv);
-
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-
+    llvm::InitializeNativeTargetAsmParser();
     // create context
     auto context = std::make_unique<llvm::LLVMContext>();
 
@@ -90,18 +97,19 @@ int main(int argc, char *argv[]) {
     // Create table
     static std::map<std::string, llvm::Value*> name2VariableMap;
     for (auto &arg : function->args()) {
-        name2VariableMap[arg.getName()] = &arg;
+        name2VariableMap[arg.getName().str()] = &arg;
     }
 
-    llvm::Value * v = builder.CreateLoad(name2VariableMap["p_a"]);
+    llvm::Value *value_a = builder.CreateLoad(name2VariableMap["p_a"]);
 
-    llvm::AllocaInst *Alloca = builder.CreateAlloca(Type::getDoubleTy(*context), 0, "a");
+    llvm::AllocaInst *alloca = builder.CreateAlloca(Type::getDoubleTy(*context), 0, "a");
 
-    builder.CreateStore(v, Alloca);
+    builder.CreateStore(value_a, alloca);
 
-    llvm::Value *v2 = builder.CreateLoad(Alloca);
+    llvm::Value *v2 = builder.CreateLoad(alloca);
 
-    auto temp = builder.CreateFMul(v, v, "tempmul");
+    auto temp = builder.CreateFMul(value_a, value_a, "tempmul");
+
     auto result = builder.CreateFAdd(temp, v2, "tempmul");
 
     builder.CreateRet(result);
@@ -112,26 +120,25 @@ int main(int argc, char *argv[]) {
     }
 
     module->print(llvm::outs(), nullptr);
-
     llvm::ExitOnError("Error module!", verifyModule(*module));
-
-    auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
 
     // Try to detect the host arch and construct an LLJIT instance.
     auto jit = llvm::orc::LLJITBuilder().create();
 
-    if (auto error = jit->get()->addIRModule(std::move(thread_safe_module))) {
-        // error
-        return 1;
+    if (jit) {
+        auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+        auto error = jit->get()->addIRModule(std::move(thread_safe_module));
+        assert(!error && "LLJIT can not add handle module.");
+        auto symbol = jit->get()->lookup("originalFunction");
+        auto f = reinterpret_cast<double(*)(double*)>(symbol->getAddress());
+
+        // Execution
+        double a = 10;
+
+        std::cout << f(&a) << std::endl;
+    } else {
+        std::cout << "Error - LLJIT can not be initialized." << std::endl;
     }
-
-    auto symbol = jit->get()->lookup("originalFunction");
-    auto f = reinterpret_cast<double(*)(double*)>(symbol->getAddress());
-
-    // Execution
-    double a = 10;
-
-    std::cout << f(&a) << std::endl;
 
     return 0;
 }

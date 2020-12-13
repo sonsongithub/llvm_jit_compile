@@ -33,14 +33,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
-
 #include "llvm/Support/TargetSelect.h"
-
-#include "llvm/Target/TargetMachine.h"
-
-#include "llvm/ExecutionEngine/MCJIT.h"
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/Support/InitLLVM.h"
 
 // ; ModuleID = 'originalModule'
 // source_filename = \"originalModule\"
@@ -58,53 +53,61 @@
 //   %addtmp = fadd double %tmphoge1, %b
 //   ret double %addtmp
 // }
-
 // declare double @cos(double)
 
-using namespace llvm;
-using namespace std;
-
-// Context for LLVM
-static LLVMContext TheContext;
-
-extern "C" double hoge(double a) {
+// C
+extern "C" double two_times(double a) {
     return a * 2;
 }
 
-double hoge_cpp(double a) {
-    return a * 2;
+// C++
+double three_times(double a) {
+    return a * 3;
 }
 
-int main() {
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
+int main(int argc, char *argv[]) {
+    // using declaration for llvm
+    using llvm::Type;
+    using llvm::Function;
+    using llvm::BasicBlock;
+    using llvm::FunctionType;
+    using llvm::Value;
+    using llvm::LLVMContext;
+    using llvm::Module;
+
+    // Init LLVM
+    llvm::InitLLVM X(argc, argv);
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
+
+    // create context
+    auto context = std::make_unique<LLVMContext>();
 
     // Create a new module
-    std::unique_ptr<Module> module(new llvm::Module("originalModule", TheContext));
+    std::unique_ptr<Module> module(new llvm::Module("originalModule", *context));
 
-    // module->getOrInsertFunction("cos", Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext));
+    module->getOrInsertFunction("two_times", Type::getDoubleTy(*context), Type::getDoubleTy(*context));
 
-    module->getOrInsertFunction("hoge", Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext));
+    module->getOrInsertFunction("_Z11three_timesd", Type::getDoubleTy(*context), Type::getDoubleTy(*context));
 
-    module->getOrInsertFunction("_Z8hoge_cppd", Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext));
+    module->getOrInsertFunction("sin", Type::getDoubleTy(*context), Type::getDoubleTy(*context));
 
-    module->getOrInsertFunction("sin", Type::getDoubleTy(TheContext), Type::getDoubleTy(TheContext));
-
-    std::vector<Type *> Double(1, Type::getDoubleTy(TheContext));
+    std::vector<Type *> Double(1, Type::getDoubleTy(*context));
 
     // LLVM IR builder
-    static IRBuilder<> builder(TheContext);
+    static llvm::IRBuilder<> builder(*context);
 
     // define function
     std::vector<std::string> argNames{"a", "b"};
     auto functionName = "originalFunction";
 
-    std::vector<Type *> Doubles(2, Type::getDoubleTy(TheContext));
-    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+    std::vector<Type *> Doubles(2, Type::getDoubleTy(*context));
+    FunctionType *functionType = FunctionType::get(Type::getDoubleTy(*context), Doubles, false);
     Function *function = Function::Create(functionType, Function::ExternalLinkage, functionName, module.get());
 
-    FunctionType *conFunctionType = FunctionType::get(Type::getDoubleTy(TheContext), Double, false);
-    Function::Create(conFunctionType, Function::ExternalLinkage, "cos", module.get());
+    FunctionType *conFunctionType = FunctionType::get(Type::getDoubleTy(*context), Double, false);
+    Function::Create(conFunctionType, Function::ExternalLinkage, "sin", module.get());
 
     // Set names for all arguments.
     // I'd like to use "zip" function, here.....
@@ -114,7 +117,7 @@ int main() {
     }
 
     // Create a new basic block to start insertion into.
-    BasicBlock *basicBlock = BasicBlock::Create(TheContext, "entry", function);
+    BasicBlock *basicBlock = BasicBlock::Create(*context, "entry", function);
     builder.SetInsertPoint(basicBlock);
 
     // Create table
@@ -123,9 +126,9 @@ int main() {
         name2VariableMap[arg.getName()] = &arg;
     }
 
-    Function *TheFunction = module->getFunction("_Z8hoge_cppd");
+    Function *TheFunction = module->getFunction("_Z11three_timesd");
 
-    Function *cosFunction = module->getFunction("cos");
+    Function *cosFunction = module->getFunction("sin");
 
     auto hoge1 = builder.CreateCall(TheFunction, name2VariableMap["a"], "tmphoge");
 
@@ -136,39 +139,35 @@ int main() {
     builder.CreateRet(result);
 
     if (verifyFunction(*function)) {
-        cout << ": Error constructing function!\n" << endl;
+        std::cout << ": Error constructing function!\n" << std::endl;
         return 1;
     }
 
     module->print(llvm::outs(), nullptr);
 
-    if (verifyModule(*module)) {
-        cout << ": Error module!\n" << endl;
-        return 1;
+    llvm::ExitOnError("Error module!", verifyModule(*module));
+
+    // Try to detect the host arch and construct an LLJIT instance.
+    auto jit = llvm::orc::LLJITBuilder().create();
+
+    if (jit) {
+        auto thread_safe_module = llvm::orc::ThreadSafeModule(std::move(module), std::move(context));
+        auto error = jit->get()->addIRModule(std::move(thread_safe_module));
+        llvm::orc::JITDylib &dylib = jit->get()->getMainJITDylib();
+        const llvm::DataLayout &dataLayout = jit->get()->getDataLayout();
+        dylib.addGenerator(
+            llvm::cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(dataLayout.getGlobalPrefix())));
+        assert(!error && "LLJIT can not add handle module.");
+        auto symbol = jit->get()->lookup("originalFunction");
+        if (!symbol) {
+            assert(0 && "Can not find a symbol of the main function.");
+        }
+        auto f = reinterpret_cast<double(*)(double, double)>(symbol->getAddress());
+        assert(f && "Can not get function pointer.");
+
+        std::cout << "Evaluated to " << f(10, 11) << std::endl;
+    } else {
+        std::cout << "Error - LLJIT can not be initialized." << std::endl;
     }
-
-    // Builder JIT
-    std::string errStr;
-    ExecutionEngine *engineBuilder = EngineBuilder(std::move(module))
-        .setEngineKind(EngineKind::JIT)
-        .setErrorStr(&errStr)
-        .create();
-    if (!engineBuilder) {
-        std::cout << "error: " << errStr << std::endl;
-        return 1;
-    }
-
-    // Get pointer to a function which is built by EngineBuilder.
-    auto f = reinterpret_cast<double(*)(double, double)>(engineBuilder->getFunctionAddress(function->getName().str()));
-    if (f == NULL) {
-        cout << "error" << endl;
-        return 1;
-    }
-
-    // Execution
-    // a + b
-    cout << f(1.0, 2.0) << endl;
-    cout << f(2.0, 2.0) << endl;
-
     return 0;
 }

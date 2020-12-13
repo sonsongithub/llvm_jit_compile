@@ -139,9 +139,9 @@ int main(int argc, char *argv[]) {
     auto symbol = executionSession.lookup({&mainJITDylib}, mangle("originalFunction"));
 
     if (symbol) {
-        auto *FP = (double (*)(double, double))(intptr_t)symbol->getAddress();
-        assert(FP && "Failed to codegen function");
-        std::cout << "Evaluated to " << FP(10, 11) << std::endl;
+        auto *func = (double (*)(double, double))(intptr_t)symbol->getAddress();
+        assert(func && "Failed to codegen function");
+        std::cout << "Evaluated to " << func(10, 11) << std::endl;
     }
 
     return 0;
